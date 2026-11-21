@@ -218,7 +218,7 @@ class SubdomainScanner(BaseScanner):
 
             if matched_provider:
                 sev = Severity.HIGH if dangling else Severity.LOW
-                conf = "VERIFIED" if dangling else "POSSIBLE"
+                conf = "LIKELY" if dangling else "POSSIBLE"
                 desc = (
                     f"Subdomain {subdomain} points to unclaimed/dangling {matched_provider} host."
                     if dangling else

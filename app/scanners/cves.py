@@ -177,7 +177,7 @@ class CVEScanner(BaseScanner):
                     title=f"{cve_id}: {lib_name} {version}",
                     description=f"{desc}. Detected version {version} is vulnerable (fixed in {fix_ver}).",
                     evidence=f"Library: {lib_name} {version}\nCVE: {cve_id}\nCVSS: {cvss}\nFixed in: {fix_ver}",
-                    confidence="VERIFIED",
+                    confidence="LIKELY",
                     remediation=f"Upgrade {lib_name} to version {fix_ver} or later.",
                     metadata={
                         "vuln_type": "Known CVE",

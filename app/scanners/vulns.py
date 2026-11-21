@@ -5,7 +5,7 @@ Actually TESTS for vulnerabilities by sending payloads and analyzing responses.
 This is what separates a recon tool from a real vulnerability scanner.
 
 Tests: XSS (reflected), SQLi (error-based + boolean-blind), SSRF, LFI, Open Redirect.
-Only reports VERIFIED findings where the payload proves the vulnerability exists.
+Reports initial candidate findings (LIKELY / POSSIBLE); verification with proof is handled by the validator layer.
 """
 
 from __future__ import annotations
@@ -144,16 +144,16 @@ class VulnScanner(BaseScanner):
         except Exception as e:
             self._log(f"Vuln scanner error: {e}")
 
-        verified = sum(1 for f in self._findings if f.confidence == "VERIFIED")
         likely = sum(1 for f in self._findings if f.confidence == "LIKELY")
-        self._log(f"Vuln scan complete: {verified} verified, {likely} likely, "
-                  f"{len(self._findings)} total findings")
+        possible = sum(1 for f in self._findings if f.confidence == "POSSIBLE")
+        self._log(f"Vuln scan complete: {likely} likely, {possible} possible, "
+                  f"{len(self._findings)} total candidate findings")
 
         return self._build_result(
             start,
             tested=len(targets),
-            verified=verified,
             likely=likely,
+            possible=possible,
         )
 
     def _collect_targets(self) -> List[Dict]:
@@ -323,16 +323,16 @@ class VulnScanner(BaseScanner):
                             )
 
                             if reflected_dangerous:
-                                confidence = "VERIFIED"
-                                desc = (f"Reflected XSS CONFIRMED. Payload reflected in executable context. "
+                                confidence = "LIKELY"
+                                desc = (f"Reflected XSS candidate. Payload reflected in executable context. "
                                         f"Parameter '{target['param']}' directly injects into HTML without sanitization.")
                             else:
-                                confidence = "LIKELY"
+                                confidence = "POSSIBLE"
                                 desc = (f"XSS canary reflected in response but may be HTML-encoded. "
                                         f"Parameter '{target['param']}' reflects user input — manual verification needed.")
 
                             self._add_finding(Finding(
-                                severity=Severity.HIGH if confidence == "VERIFIED" else Severity.MEDIUM,
+                                severity=Severity.HIGH if confidence == "LIKELY" else Severity.MEDIUM,
                                 category="vulns",
                                 title=f"XSS: {target['param']} @ {urlparse(target['base_url']).path}",
                                 description=desc,
@@ -401,7 +401,7 @@ class VulnScanner(BaseScanner):
                                             f"Database error message exposed: {match.group(0)[:100]}",
                                 evidence=f"Payload: {payload}\nSQL Error: {match.group(0)[:200]}\nURL: {url[:200]}",
                                 url=url[:500],
-                                confidence="VERIFIED",
+                                confidence="LIKELY",
                                 remediation="Use parameterized queries (prepared statements) for ALL database interactions. "
                                             "Never concatenate user input into SQL strings. Use an ORM.",
                                 metadata={
@@ -506,7 +506,7 @@ class VulnScanner(BaseScanner):
                                             f"Successfully read system file via path traversal.",
                                 evidence=f"Payload: {payload}\nSignature found: {signature}\nURL: {url[:200]}",
                                 url=url[:500],
-                                confidence="VERIFIED",
+                                confidence="LIKELY",
                                 remediation="Never use user input in file paths. Use a whitelist of allowed files. "
                                             "If dynamic file loading is needed, use an ID→filename mapping, not raw paths.",
                                 metadata={
@@ -552,7 +552,7 @@ class VulnScanner(BaseScanner):
                         # Check for signs the server made an internal request
                         if ("169.254.169.254" in ssrf_url and
                             ("ami-id" in body or "instance-id" in body or "iam" in body.lower())):
-                            confidence = "VERIFIED"
+                            confidence = "LIKELY"
                             desc = "AWS metadata endpoint accessible via SSRF — instance credentials exposed"
                         elif resp.status == 200 and len(body) > 100 and any(h in ssrf_url for h in ("localhost", "127.0.0.1", "[::1]")):
                             # Verify indicator was not present in target original
@@ -575,7 +575,7 @@ class VulnScanner(BaseScanner):
                             continue
 
                         self._add_finding(Finding(
-                            severity=Severity.CRITICAL if confidence == "VERIFIED" else Severity.HIGH,
+                            severity=Severity.HIGH,
                             category="vulns",
                             title=f"SSRF: {target['param']} @ {urlparse(target['base_url']).path}",
                             description=f"Server-Side Request Forgery detected. {desc}",
@@ -635,7 +635,7 @@ class VulnScanner(BaseScanner):
                                                 f"Server redirects to attacker-controlled URL.",
                                     evidence=f"Payload: {payload}\nLocation: {location}\nURL: {url[:200]}",
                                     url=url[:500],
-                                    confidence="VERIFIED",
+                                    confidence="LIKELY",
                                     remediation="Validate redirect URLs against a whitelist of allowed domains. "
                                                 "Use relative paths for redirects. Never use raw user input in Location header.",
                                     metadata={

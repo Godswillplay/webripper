@@ -530,9 +530,10 @@ class PathScanner(BaseScanner):
                 severity = _get_severity(item["path"])
                 ct = item.get("content_type", "unknown")
                 cl = item.get("content_length", 0)
-                evidence = f"HTTP {status_code} — {ct} ({cl} bytes) [VERIFIED]"
+                evidence = f"HTTP {status_code} — {ct} ({cl} bytes) [ACCESSIBLE]"
 
             exploit_intel = _get_exploit_intel(item["path"], severity)
+            confidence = "LIKELY" if status_code == 200 else "POSSIBLE"
             self._add_finding(Finding(
                 severity=severity,
                 category="paths",
@@ -540,6 +541,7 @@ class PathScanner(BaseScanner):
                 description=_get_description(item["path"]),
                 evidence=evidence,
                 url=item["url"],
+                confidence=confidence,
                 remediation=_get_remediation(item["path"]),
                 metadata={
                     "status_code": status_code,

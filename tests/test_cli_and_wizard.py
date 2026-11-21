@@ -4,7 +4,7 @@ Unit tests for WebRipper Recon 5.0 CLI, Interactive Wizard, and Headless Agent I
 Validates:
 - CLI argument parsing for --wizard, --interactive, --scanners, --delay, --open, --intel-query
 - Interactive wizard execution flow with simulated prompt inputs
-- Semantic exit codes (0=clean, 1=error, 2=critical/high, 3=WAF block, 4=rate-limited)
+- Semantic exit codes (0=clean, 1=error, 2=critical/high, 3=target unreachable, 4=rate-limited, 5=WAF block)
 - AI agent cancellation and ping
 - AI toolbox vulnerability intelligence lookup
 """
@@ -144,8 +144,34 @@ def test_cli_semantic_exit_code_critical_findings(tmp_path):
         assert code == 2
 
 
+def test_cli_semantic_exit_code_target_unreachable(tmp_path):
+    """B6 regression check: Verify exit code 3 when target is unreachable (connection refused/dead port)."""
+    mock_report = ReconReport(
+        url="http://127.0.0.1:59999/",
+        start_time="2026-01-01T00:00:00",
+        end_time="2026-01-01T00:00:01",
+        unreachable=True,
+        rip_report=RipReport(
+            url="http://127.0.0.1:59999/",
+            pages_crawled=0,
+            total_downloaded=0,
+            unreachable=True,
+            errors=["Connection failed: Connection refused"],
+        ),
+        scan_results=[],
+    )
+
+    def mock_run(self):
+        self.report = mock_report
+
+    with patch("app.worker.RipperWorker.run", mock_run):
+        opts = build_parser().parse_args(["http://127.0.0.1:59999/", "-o", str(tmp_path / "rep.html"), "-q"])
+        code = _scan_target("http://127.0.0.1:59999/", opts)
+        assert code == 3, f"Expected exit code 3 for unreachable target, got {code}"
+
+
 def test_cli_semantic_exit_code_waf_blocked(tmp_path):
-    """Verify exit code 3 when target is protected by a WAF or Gateway block."""
+    """Verify exit code 5 when target is protected by a WAF or Gateway block."""
     mock_report = ReconReport(
         url="https://example.com",
         start_time="2026-01-01T00:00:00",
@@ -172,7 +198,7 @@ def test_cli_semantic_exit_code_waf_blocked(tmp_path):
     with patch("app.worker.RipperWorker.run", mock_run):
         opts = build_parser().parse_args(["https://example.com", "-o", str(tmp_path / "rep.html")])
         code = _scan_target("https://example.com", opts)
-        assert code == 3
+        assert code == 5
 
 
 def test_cli_semantic_exit_code_rate_limited(tmp_path):

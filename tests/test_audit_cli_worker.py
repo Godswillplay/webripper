@@ -2,7 +2,7 @@
 Tests for deep audit fixes in app.cli, app.main, and app.worker:
 1. Thread safety & cancellation race conditions in CallbackSignal and RipperWorker.
 2. Multi-target state leakage, RipReport merging, and output path uniqueness.
-3. Exit code priority (2 > 3 > 4 > 1 > 0).
+3. Exit code priority (2 > 3 > 5 > 4 > 1 > 0).
 4. Argparse exit code 1 on parse error instead of 2.
 5. Clean scan with 'No WAF Detected' returns code 0 (not 3).
 """

@@ -179,7 +179,17 @@ class RipperWorker(threading.Thread):
                         recon.rip_report.total_failed += rip_report.total_failed
                         recon.rip_report.total_size += rip_report.total_size
 
-                if rip_report and rip_report.pages_crawled == 0 and rip_report.total_downloaded == 0 and (rip_report.errors or rip_report.total_failed > 0):
+                # Check if root fetch succeeded or target is unreachable
+                target_unreachable = False
+                if not rip_report or getattr(rip_report, "unreachable", False) is True:
+                    target_unreachable = True
+                elif rip_report.pages_crawled == 0 and rip_report.total_downloaded == 0 and (rip_report.errors or rip_report.total_failed > 0):
+                    target_unreachable = True
+
+                if target_unreachable:
+                    recon.unreachable = True
+                    if rip_report:
+                        rip_report.unreachable = True
                     self._on_progress(ProgressEvent(
                         event_type=EventType.LOG,
                         message=f"Target {target_url} was unreachable — aborting scanner pipeline.",
@@ -201,6 +211,13 @@ class RipperWorker(threading.Thread):
                     return
 
                 self._pause_event.wait()
+
+            # If target was unreachable, abort external tools, correlator, and report saving
+            if getattr(recon, "unreachable", False) is True or (getattr(recon, "rip_report", None) and getattr(recon.rip_report, "unreachable", False) is True):
+                recon.unreachable = True
+                self.report = recon
+                self.finished.emit(recon)
+                return
 
             # Phase 3: Detect and run external tools
             if self.settings.use_external_tools and self.settings.profile != "quick":

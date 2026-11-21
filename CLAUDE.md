@@ -30,8 +30,9 @@
    - `0`: Clean execution, zero CRITICAL/HIGH findings.
    - `1`: Operational error / unhandled exception.
    - `2`: Security issues detected (CRITICAL or HIGH severity findings).
-   - `3`: Gateway or Web Application Firewall block detected.
+   - `3`: Target unreachable (connection refused, host unreachable, DNS resolution failed).
    - `4`: Target rate limiting (HTTP 429) detected.
+   - `5`: Gateway or Web Application Firewall block detected (HTTP 403).
 6. **Rate-Limiting & Jitter**:
    - Base delay calculations in `AutoThrottle.get_delay()` must remain deterministic for tests and backoff algorithms.
    - Actual network socket sleep operations apply timing jitter via `AutoThrottle.delay_for()`.

@@ -280,6 +280,8 @@ class WebRipper:
         # Modern scraper state (inspired by Scrapling)
         self._captured_requests: List[Dict[str, Any]] = []
         self._network_recorder = NetworkRecorder()
+        self._errors: List[str] = []
+        self._unreachable = False
         self._throttle = AutoThrottle(
             start_delay=settings.delay,
             max_delay=30.0,
@@ -334,7 +336,8 @@ class WebRipper:
                 root_ok = await self._fetch_root(session)
                 if not root_ok:
                     self._emit_log("Failed to fetch root page — aborting")
-                    return self._build_report(start)
+                    self._unreachable = True
+                    return self._build_report(start, unreachable=True)
 
                 if self._is_cancelled():
                     cancelled = True
@@ -530,6 +533,27 @@ class WebRipper:
                 self._emit_log(f"Fetched root page ({_format_size(root_size)})")
                 return True
         except Exception as exc:
+            # If this is a connection-level error (refused, DNS resolution failed, host unreachable),
+            # retrying with 512KB buffer or Playwright browser is futile and wastes 60s.
+            is_conn_error = isinstance(
+                exc,
+                (
+                    aiohttp.ClientConnectorError,
+                    aiohttp.ClientConnectorCertificateError,
+                    aiohttp.ClientOSError,
+                    ConnectionRefusedError,
+                    OSError,
+                ),
+            )
+            if not is_conn_error and hasattr(exc, "os_error") and isinstance(exc.os_error, OSError):
+                is_conn_error = True
+            if is_conn_error:
+                self._emit_log(f"Target connection failed ({exc}) — target unreachable.")
+                self._unreachable = True
+                self._errors.append(f"Connection failed: {exc}")
+                self._failed_count += 1
+                return False
+
             self._emit_log(f"Initial root fetch error ({exc}) — activating resilient fallback")
             return await self._fetch_root_fallback(original_error=exc)
 
@@ -657,6 +681,9 @@ class WebRipper:
         except Exception as pw_err:
             self._emit_log(f"Playwright browser fallback error: {pw_err}")
 
+        self._unreachable = True
+        self._errors.append(f"Root fetch fallback failed: {original_error or 'Unknown error'}")
+        self._failed_count += 1
         return False
 
     async def _launch_browser(self, pw, base_options: Dict[str, Any]):
@@ -1663,7 +1690,7 @@ class WebRipper:
         )
 
     def _build_report(
-        self, start: datetime, *, cancelled: bool = False
+        self, start: datetime, *, cancelled: bool = False, unreachable: bool = False
     ) -> RipReport:
         return RipReport(
             url=self._base_url,
@@ -1676,4 +1703,6 @@ class WebRipper:
             total_size=self._total_bytes,
             pages_crawled=self._pages_crawled,
             captured_requests=list(self._captured_requests),
+            errors=list(self._errors),
+            unreachable=unreachable or getattr(self, "_unreachable", False),
         )

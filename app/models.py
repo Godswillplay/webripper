@@ -301,6 +301,7 @@ class RipReport:
     pages: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     captured_requests: List[Dict[str, Any]] = field(default_factory=list)
+    unreachable: bool = False
 
     def to_dict(self) -> dict:
         summary = {
@@ -550,6 +551,7 @@ class ReconReport:
     tool_status: List[ToolStatus] = field(default_factory=list)
     tool_commands: Dict[str, str] = field(default_factory=dict)  # tool -> manual command
     ai_summary: str = ""                                         # AI-generated threat narrative
+    unreachable: bool = False
 
     @property
     def all_findings(self) -> List[Finding]:
@@ -596,6 +598,9 @@ class ReconReport:
             "tool_commands": self.tool_commands,
             "ai_summary": self.ai_summary,
         }
+        if getattr(self, "unreachable", False):
+            d["unreachable"] = True
+        return d
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)

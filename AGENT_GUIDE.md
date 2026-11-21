@@ -216,8 +216,9 @@ flowchart TD
     
     SurfaceScan --> ExitCodeCheck{Exit Code?}
     ExitCodeCheck -->|0: Clean| DeliverClean[Generate Executive Clean Report]
-    ExitCodeCheck -->|3: WAF Blocked| SuggestWAF[Advise: Lower concurrency / rate limits]
+    ExitCodeCheck -->|3: Unreachable| CheckTarget[Verify target host and port are online]
     ExitCodeCheck -->|4: Rate Limited| SuggestDelay[Advise: Increase --delay to 1.0+]
+    ExitCodeCheck -->|5: WAF Blocked| SuggestWAF[Advise: Lower concurrency / rate limits]
     ExitCodeCheck -->|2: Risk Detected| Triage[Triage Findings by Severity]
     
     Triage --> SecretsCheck{Secrets Found?}

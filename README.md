@@ -34,7 +34,7 @@ Designed for DevSecOps engineers, security researchers, and autonomous AI coding
 
 ### Key Capabilities
 * **Pure CLI & Agent-Native Architecture**: Completely headless with zero desktop GUI dependencies. Run interactively with the terminal wizard (`--wizard`) or non-interactively in CI/CD pipelines and AI agent tool loops.
-* **Semantic Exit Codes**: Deterministic status codes (`0` Clean, `1` Error, `2` High/Critical Finding, `3` WAF Blocked, `4` Rate Limited) for automated build gating.
+* **Semantic Exit Codes**: Deterministic status codes (`0` Clean, `1` Error, `2` High/Critical Finding, `3` Target Unreachable, `4` Rate Limited, `5` WAF Blocked) for automated build gating.
 * **Offline Scenario Intelligence (Scanner #21)**: Embedded SQLite FTS5 database (`intel.db`) containing **30,297 indexed intelligence records** (Nuclei templates, HackerOne bug bounty reports, CISA KEV entries, PortSwigger research techniques, and cloud takeover fingerprints). Issues 15–20 focused canary verification probes matching detected tech stacks.
 * **Native Model Context Protocol (MCP) Server**: Embedded stdio JSON-RPC 2.0 server (`python -m app.mcp`) providing first-class agent tools (`webripper_scan`, `lookup_vulnerability_intelligence`, `run_canary_probe`, `get_attack_chains`, `list_scans`).
 * **Real-Time NDJSON Streaming & Diffing**: Stream live structured audit events via `--json-stream` and automatically calculate security regressions against baselines using `--diff`.
@@ -323,10 +323,11 @@ WebRipper Recon adheres to deterministic exit codes for programmatic automation 
 | Exit Code | Constant | Meaning & Recommended Action |
 | :---: | :--- | :--- |
 | **`0`** | `CLEAN` | Scan completed successfully. Zero CRITICAL or HIGH findings detected. |
-| **`1`** | `ERROR` | Operational failure (network error, invalid configuration, unresolvable domain). |
+| **`1`** | `ERROR` | Operational failure (syntax error, invalid CLI flags, invalid URL scheme). |
 | **`2`** | `RISK_DETECTED` | **CRITICAL** or **HIGH** severity security findings detected. Gate the build. |
-| **`3`** | `WAF_BLOCKED` | Request traffic was intercepted by a WAF or Security Gateway (HTTP 403). |
+| **`3`** | `TARGET_UNREACHABLE` | Target host could not be reached (connection refused, host down, DNS error). |
 | **`4`** | `RATE_LIMITED` | Target enforced HTTP 429 Too Many Requests. Increase `--delay` and retry. |
+| **`5`** | `WAF_BLOCKED` | Request traffic was intercepted by a WAF or Security Gateway (HTTP 403). |
 
 ---
 

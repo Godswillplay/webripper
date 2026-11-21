@@ -4,7 +4,7 @@ CLI / Headless engine & Interactive Wizard for WebRipper Recon 5.0.
 Provides dual-mode operational flexibility:
   1. Interactive Terminal Wizard for human operators (prompt-driven)
   2. Deterministic Headless Mode for AI agents (Claude Code, Antigravity, Cursor) & CI/CD
-     with semantic exit codes (0=clean, 1=error, 2=critical/high, 3=WAF blocked, 4=rate limited).
+     with semantic exit codes (0=clean, 1=error, 2=critical/high, 3=target unreachable, 4=rate limited, 5=WAF blocked).
 """
 
 from __future__ import annotations
@@ -265,8 +265,9 @@ def run_cli(args: Optional[List[str]] = None) -> int:
       0 = Clean scan (no high/critical findings, normal execution)
       1 = Fatal error / configuration failure
       2 = Security findings discovered (CRITICAL or HIGH severity)
-      3 = Target blocked audit via WAF / Security Gateway (403 Cloudflare/Akamai)
+      3 = Target unreachable (connection refused, host down, DNS error)
       4 = Rate-limited by target (429 Too Many Requests)
+      5 = Target blocked audit via WAF / Security Gateway (403 Cloudflare/Akamai)
     """
     parser = build_parser()
     opts = parser.parse_args(args)
@@ -329,7 +330,7 @@ def run_cli(args: Optional[List[str]] = None) -> int:
         return 1
 
     worst_exit_code = 0
-    _EXIT_CODE_PRIORITY = {2: 40, 3: 30, 4: 20, 1: 10, 0: 0}
+    _EXIT_CODE_PRIORITY = {2: 50, 3: 40, 5: 30, 4: 20, 1: 10, 0: 0}
 
     for i, url in enumerate(targets, 1):
         if len(targets) > 1 and not opts.quiet:
@@ -338,7 +339,7 @@ def run_cli(args: Optional[List[str]] = None) -> int:
             print(_bold(f"{'='*60}"))
 
         exit_code = _scan_target(url, opts, target_index=i, total_targets=len(targets))
-        # Prioritize non-zero exit codes: 2 (Critical/High) > 3 (WAF) > 4 (RateLimit) > 1 (Error) > 0
+        # Prioritize non-zero exit codes: 2 (Critical/High) > 3 (Unreachable) > 5 (WAF) > 4 (RateLimit) > 1 (Error) > 0
         if _EXIT_CODE_PRIORITY.get(exit_code, 0) > _EXIT_CODE_PRIORITY.get(worst_exit_code, 0):
             worst_exit_code = exit_code
 
@@ -695,17 +696,17 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
             return 1
 
         # Check for unreachable target
-        if report.rip_report and report.rip_report.pages_crawled == 0 and report.rip_report.total_downloaded == 0:
-            has_failure = bool(report.rip_report.errors or report.rip_report.total_failed > 0 or getattr(report.rip_report, "unreachable", False))
-            if has_failure:
-                print(_red(f"\nTarget unreachable: Could not connect to {url}"), file=sys.stderr)
-                emit_stream({
-                    "event": "target_unreachable",
-                    "target": url,
-                    "error": "Connection failed / Target unreachable",
-                    "timestamp": time.time(),
-                })
-                return 3
+        if getattr(report, "unreachable", False) is True or (
+            getattr(report, "rip_report", None) and getattr(report.rip_report, "unreachable", False) is True
+        ):
+            print(_red(f"\nTarget unreachable: Could not connect to {url}"), file=sys.stderr)
+            emit_stream({
+                "event": "target_unreachable",
+                "target": url,
+                "error": "Connection failed / Target unreachable",
+                "timestamp": time.time(),
+            })
+            return 3
 
         # Gather findings
         all_findings = []
@@ -846,13 +847,14 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
 
         # Semantic Exit Code Resolution:
         # 2 = CRITICAL or HIGH findings present
-        # 3 = WAF blocked
+        # 3 = Target unreachable (connection refused, DNS failure, timeout)
         # 4 = Rate limited (429)
+        # 5 = WAF blocked (403)
         # 0 = Clean scan
         if crit > 0 or high > 0:
             return 2
         if waf_blocked:
-            return 3
+            return 5
         if rate_limited:
             return 4
         return 0

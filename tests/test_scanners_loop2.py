@@ -139,8 +139,8 @@ def test_javascript_scanner_inline_7_sinks(tmp_path):
     document.getElementById("content").innerHTML = location.search;
     // 3. eval
     eval(location.hash.substring(1));
-    // 4. setTimeout with string variable
-    setTimeout(string, 100);
+    // 4. setTimeout with DOM expression
+    setTimeout(location.hash.slice(1), 100);
     // 5. location assignment
     location.href = "/redirect?url=" + encodeURIComponent(location.hash);
     // 6. outerHTML

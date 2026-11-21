@@ -65,7 +65,10 @@ _XSS_SINKS: List[Tuple[str, re.Pattern, Severity, str, str, str]] = [
     ),
     (
         "setTimeout with string argument",
-        re.compile(r"""\bsetTimeout\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user)\b)""", re.IGNORECASE),
+        re.compile(
+            r"""\bsetTimeout\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:\w+\.)*(?:location|document|window|history|navigator)\b|(?:decodeURI|decodeURIComponent|unescape|atob)\s*\(|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user|query|hash|search|str|text)\b)""",
+            re.IGNORECASE,
+        ),
         Severity.MEDIUM,
         "setTimeout() with string argument acts like eval().",
         "setTimeout('alert(1)', 0) executes the string as code. If user input reaches the string argument, attacker gets code execution.",
@@ -73,7 +76,10 @@ _XSS_SINKS: List[Tuple[str, re.Pattern, Severity, str, str, str]] = [
     ),
     (
         "setInterval with string argument",
-        re.compile(r"""\bsetInterval\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user)\b)""", re.IGNORECASE),
+        re.compile(
+            r"""\bsetInterval\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:\w+\.)*(?:location|document|window|history|navigator)\b|(?:decodeURI|decodeURIComponent|unescape|atob)\s*\(|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user|query|hash|search|str|text)\b)""",
+            re.IGNORECASE,
+        ),
         Severity.MEDIUM,
         "setInterval() with string argument acts like eval().",
         "Same as setTimeout — string arguments are executed as code repeatedly.",

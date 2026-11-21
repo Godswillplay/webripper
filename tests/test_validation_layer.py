@@ -38,6 +38,7 @@ from app.validation import (
 
 class FixtureTrapServer(http.server.BaseHTTPRequestHandler):
     """Local deterministic fixture server with planted vulns and false-positive bait."""
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):
         pass  # Suppress console logging in tests
@@ -48,6 +49,19 @@ class FixtureTrapServer(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.do_GET()
 
+    def _send_payload(self, code: int, content_type: str, body: bytes, extra_headers: dict | None = None):
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.close_connection = True
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -55,76 +69,73 @@ class FixtureTrapServer(http.server.BaseHTTPRequestHandler):
 
         # 1. Clean endpoint
         if path == "/clean":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(b"<html><body><h1>Clean Safe Page</h1><p>No vulnerabilities here.</p></body></html>")
+            self._send_payload(
+                200, "text/html; charset=utf-8",
+                b"<html><body><h1>Clean Safe Page</h1><p>No vulnerabilities here.</p></body></html>"
+            )
             return
 
         # 2. Planted SQLi
         if path == "/sqli":
             query_id = params.get("id", [""])[0]
             if "'" in query_id or "'" in parsed.query:
-                self.send_response(500)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(b"Error: SQL syntax error: unexpected quote in MySQL query at line 1")
+                self._send_payload(
+                    500, "text/html; charset=utf-8",
+                    b"Error: SQL syntax error: unexpected quote in MySQL query at line 1"
+                )
             else:
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status": "ok", "user": "normal_record"}')
+                self._send_payload(
+                    200, "application/json",
+                    b'{"status": "ok", "user": "normal_record"}'
+                )
             return
 
         # 3. Planted CORS (vulnerable: reflects arbitrary origin + credentials true)
         if path == "/cors-vuln":
             origin = self.headers.get("Origin", "")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            cors_headers = {}
             if origin:
-                self.send_header("Access-Control-Allow-Origin", origin)
-                self.send_header("Access-Control-Allow-Credentials", "true")
-            self.end_headers()
-            self.wfile.write(b'{"secret_data": "authenticated_profile"}')
+                cors_headers["Access-Control-Allow-Origin"] = origin
+                cors_headers["Access-Control-Allow-Credentials"] = "true"
+            self._send_payload(
+                200, "application/json",
+                b'{"secret_data": "authenticated_profile"}',
+                cors_headers
+            )
             return
 
         # 4. Safe CORS bait (wildcard * without credentials and without origin reflection)
         if path == "/cors-safe":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(b'{"public_data": "world_readable"}')
+            self._send_payload(
+                200, "application/json",
+                b'{"public_data": "world_readable"}',
+                {"Access-Control-Allow-Origin": "*"}
+            )
             return
 
         # 5. Planted Open Redirect
         if path == "/redirect":
             dest = params.get("url", [""])[0]
             if dest:
-                self.send_response(302)
-                self.send_header("Location", dest)
-                self.end_headers()
+                self._send_payload(
+                    302, "text/plain", b"",
+                    {"Location": dest}
+                )
             else:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Missing url parameter")
+                self._send_payload(200, "text/plain", b"Missing url parameter")
             return
 
         # 6. Planted Exposed File (.git/HEAD)
         if path == "/exposed-git/.git/HEAD":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"ref: refs/heads/main\n")
+            self._send_payload(200, "text/plain", b"ref: refs/heads/main\n")
             return
 
         # 7. Soft-404 catch-all bait (all paths return 200 with HTML generic template)
         if path.startswith("/catch-all-fake-404"):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(b"<!DOCTYPE html><html><head><title>404</title></head><body><h1>Page not found generic template</h1></body></html>")
+            self._send_payload(
+                200, "text/html; charset=utf-8",
+                b"<!DOCTYPE html><html><head><title>404</title></head><body><h1>Page not found generic template</h1></body></html>"
+            )
             return
 
         # 8. Planted Canary (confirms only on specific canary probe request)
@@ -135,46 +146,32 @@ class FixtureTrapServer(http.server.BaseHTTPRequestHandler):
                 or self.headers.get("X-Probe")
             )
             if canary_hdr:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Status OK: canary-delta-revealed-9912 token present")
+                self._send_payload(200, "text/plain", b"Status OK: canary-delta-revealed-9912 token present")
             else:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Normal baseline response without token")
+                self._send_payload(200, "text/plain", b"Normal baseline response without token")
             return
 
         # 9. Fake Canary bait (returns 200 OK but NEVER reveals canary token)
         if path == "/canary-fake":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"Status OK: Generic status 200 message with no matching token")
+            self._send_payload(200, "text/plain", b"Status OK: Generic status 200 message with no matching token")
             return
 
         # 10. Reflected XSS
         if path == "/xss":
             q = params.get("q", [""])[0]
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
             resp = f"<html><body><script>var search = '{q}';</script></body></html>"
-            self.wfile.write(resp.encode("utf-8"))
+            self._send_payload(200, "text/html; charset=utf-8", resp.encode("utf-8"))
             return
 
         # Default 404
-        self.send_response(404)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Not Found")
+        self._send_payload(404, "text/plain", b"Not Found")
 
 
 @pytest.fixture(scope="module")
 def fixture_server():
-    """Starts local fixture server on an ephemeral port."""
-    server = http.server.HTTPServer(("127.0.0.1", 0), FixtureTrapServer)
+    """Starts local fixture server on an ephemeral port with clean isolation."""
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FixtureTrapServer)
+    server.daemon_threads = True
     host, port = server.server_address[0], server.server_address[1]
     base_url = f"http://{host}:{port}"
 

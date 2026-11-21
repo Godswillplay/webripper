@@ -22,6 +22,8 @@
 [![MCP Ready](https://img.shields.io/badge/MCP-JSON--RPC%202.0-purple.svg)](app/mcp/)
 [![Intelligence: 30K+ Records](https://img.shields.io/badge/Intel%20DB-30%2C297%20Records-orange.svg)](app/intelligence/)
 
+> **WebRipper Recon 5.0** is an authorized, pure-CLI, agent-native web security reconnaissance and attack-surface auditing engine. It combines stealth headless browser crawling, a 21-scanner vulnerability matrix, an offline SQLite FTS5 database of 30,000+ bug bounty records, and an embedded JSON-RPC 2.0 Model Context Protocol (MCP) server for autonomous AI coding agents (**Claude Code**, **Cursor**, **Antigravity**) and CI/CD pipelines.
+
 ---
 
 ## 1. Executive Summary & Purpose
@@ -215,8 +217,8 @@ The correlation engine ([`app/correlator.py`](file:///c:/Users/JAI/Desktop/webri
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/webripper2.0.git
-cd webripper2.0
+git clone https://github.com/Godswillplay/webripper.git
+cd webripper
 
 # 2. Create and activate a virtual environment
 python -m venv .venv

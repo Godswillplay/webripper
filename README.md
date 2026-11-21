@@ -9,33 +9,33 @@
 ╚███╔███╔╝███████╗██████╔╝██║  ██║██║██║     ██║     ███████╗██║  ██║    ╚██████╔╝    ╚██████╔╝
  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝     ╚═════╝      ╚═════╝ 
 ========================================================================================
-THE KINETIC MONOLITH // EDITORIAL BRUTALIST ADVANCED RECONNAISSANCE & AI PENTEST PLATFORM
+PURE-CLI & AGENT-NATIVE AUTOMATED WEB SECURITY RECONNAISSANCE ENGINE
 ========================================================================================
 ```
 
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests: 185 Passed](https://img.shields.io/badge/tests-185%20passed-brightgreen.svg)](tests/)
+[![MCP Ready](https://img.shields.io/badge/MCP-JSON--RPC%202.0-purple.svg)](app/mcp/)
+[![Intelligence: 30K+ Records](https://img.shields.io/badge/Intel%20DB-30%2C297%20Records-orange.svg)](app/intelligence/)
+
 ---
 
-## 1. Executive Summary & Project Purpose
+## 1. Executive Summary & Purpose
 
-**WebRipper Recon 5.0** is an adversarial reconnaissance, static/dynamic security auditing, and autonomous AI vulnerability triage workstation for offensive security engineers, penetration testers, and bug bounty researchers.
+**WebRipper Recon 5.0** is an authorized, non-destructive, agent-native web security reconnaissance and attack-surface auditing engine built in Python 3.11+. 
 
-### The Problem It Solves
-Traditional penetration testing workflows are fragmented:
-1. **Asset Mirroring:** Done via `wget`, `curl`, or custom scrapers that frequently crash on modern Single-Page Applications (SPAs), get blocked by anti-bot systems (Cloudflare, Akamai), or fail to capture dynamic client-rendered assets and background network traffic.
-2. **Reconnaissance & Vulnerability Scanning:** Requires chaining dozens of disparate CLI tools (`nmap`, `nuclei`, `sqlmap`, `gobuster`, `httpx`, `subfinder`), managing complex flag syntax, and manually correlating disjointed outputs.
-3. **Manual Analysis & Triage:** Security researchers spend hours manually grepping JavaScript bundles for leaked hardcoded API keys, inspecting CORS reflections, checking security headers, and constructing manual attack chains.
-4. **AI Assistants in Security:** Commercial cloud LLMs (ChatGPT, Claude) refuse offensive security analysis due to overly aggressive alignment filters, and sending confidential corporate source code to external cloud APIs violates NDA / data privacy boundaries.
+Designed for DevSecOps engineers, security researchers, and autonomous AI coding agents (**Claude Code**, **Cursor**, **Antigravity**, **Hermes**), WebRipper Recon consolidates asset discovery, stealth scraping, 21-scanner vulnerability auditing, offline bug bounty scenario intelligence, and multi-stage attack chain correlation into a high-performance headless architecture.
 
-### The WebRipper Recon Solution
-WebRipper Recon unifies this entire workflow into a high-performance, agent-native CLI workstation:
-* **Dual-Mode CLI Flexibility**: Interactive Terminal Wizard for human operators (`py -m app.main`) and deterministic, headless CLI for AI agents (Claude Code, Antigravity, Cursor) & CI/CD with semantic exit codes (`0` clean, `1` error, `2` critical/high, `3` WAF blocked, `4` rate limited).
-* **Stealth Dynamic Scraping**: Leverages anti-fingerprint Playwright browser automation, Shadow DOM extraction, network traffic recording, and adaptive autothrottling.
-* **21-Scanner Security Audit Matrix**: Simultaneously executes passive static analysis, active vulnerability probes, and targeted bug bounty canary checks against mirrored files, headers, cookies, infrastructure, APIs, and network perimeter ports.
-* **Vulnerability Scenario Intelligence (Scanner #21)**: Embedded offline SQLite FTS5 database containing curated real-world bug bounty scenario recipes (HackerOne, PortSwigger, CISA KEV). Fingerprints the target tech stack and fires only 15–20 high-probability canary probes, eliminating rate limits and WAF bans.
-* **Integrated Security Toolchain**: 1-click automatic download, verification, and proxy routing for **Burp Suite Professional/Community, Nmap, Nuclei, SQLmap, Gobuster, HTTPX, and Subfinder**.
-* **Attack Chain Correlation**: Automatically chains disparate findings (e.g. CORS misconfiguration + leaked API key in JS + exposed admin endpoint) into high-impact attack paths with CVSS v3.1 scoring.
-* **Autonomous AI Pentesting Agent & Agent Manual**: Fully documented for AI coding agents (`AGENT_GUIDE.md` / `CLAUDE.md`) using defensive security engineering taxonomy. Integrates local AI models (`Dolphin3-Cyber-8B-GGUF`) with sandboxed tool calling to read files, search codebases, query vulnerability intelligence, and probe live endpoints.
-* **Interactive D3.js Threat Dossier**: Generates self-contained, responsive HTML reports with interactive force-directed attack graphs, CVSS 3.1 breakdowns, and machine-readable JSON exports (`recon_report.json`).
+### Key Capabilities
+* **Pure CLI & Agent-Native Architecture**: Completely headless with zero desktop GUI dependencies. Run interactively with the terminal wizard (`--wizard`) or non-interactively in CI/CD pipelines and AI agent tool loops.
+* **Semantic Exit Codes**: Deterministic status codes (`0` Clean, `1` Error, `2` High/Critical Finding, `3` WAF Blocked, `4` Rate Limited) for automated build gating.
+* **Offline Scenario Intelligence (Scanner #21)**: Embedded SQLite FTS5 database (`intel.db`) containing **30,297 indexed intelligence records** (Nuclei templates, HackerOne bug bounty reports, CISA KEV entries, PortSwigger research techniques, and cloud takeover fingerprints). Issues 15–20 focused canary verification probes matching detected tech stacks.
+* **Native Model Context Protocol (MCP) Server**: Embedded stdio JSON-RPC 2.0 server (`python -m app.mcp`) providing first-class agent tools (`webripper_scan`, `lookup_vulnerability_intelligence`, `run_canary_probe`, `get_attack_chains`, `list_scans`).
+* **Real-Time NDJSON Streaming & Diffing**: Stream live structured audit events via `--json-stream` and automatically calculate security regressions against baselines using `--diff`.
+* **15 Correlated Attack Chains**: Correlates isolated findings into composite attack paths (e.g., Next.js Server Actions + Source Maps, Spring Boot Actuators + Cloud IMDS SSRF, Subdomain Takeover + OAuth Callback Whitelist).
+* **Stealth Playwright Crawler**: Anti-fingerprinted browser crawling with Shadow DOM penetration, network traffic recording (Fetch/XHR/WebSocket), and adaptive auto-throttling.
+* **Interactive D3.js Threat Dossier**: Self-contained single-file HTML reports featuring force-directed attack graphs, CVSS 3.1 risk scores, and machine-readable JSON exports.
 
 ---
 
@@ -43,376 +43,313 @@ WebRipper Recon unifies this entire workflow into a high-performance, agent-nati
 
 ```mermaid
 flowchart TD
-    subgraph INPUT [01. Mission Control]
-        Target[Target URL / Subdomains] --> Config[Profile & Concurrency Config]
-        Config --> Auth[Auth Cookies / Bearer / Proxy]
+    subgraph INGEST [01. Input & Orchestration]
+        Target[Target URL / Subdomains] --> Config[Profile & Concurrency Engine]
+        Config --> Auth[Auth Cookies / Bearer / Headers]
+        Config --> Mode{Execution Mode}
+        Mode -->|Interactive| Wizard[Terminal Wizard: --wizard]
+        Mode -->|Programmatic| Headless[Headless CLI: --headless]
+        Mode -->|AI Agent| MCP[Native MCP Server: app.mcp]
     end
 
-    subgraph ENGINE [02. Extraction & Crawling Engine]
-        Config --> Ripper[WebRipper Async Core]
+    subgraph CRAWL [02. Extraction & Stealth Engine]
+        Headless & Wizard & MCP --> Ripper[WebRipper Async Core]
         Ripper --> Playwright[Stealth Playwright Chromium]
-        Ripper --> Scrapling[AutoThrottle & Shadow DOM]
-        Playwright --> Recorder[NetworkRecorder: XHR / Fetch / WS]
+        Ripper --> Throttle[AutoThrottle & Anti-Ban Jitter]
+        Playwright --> ShadowDOM[Shadow DOM Tree Penetration]
+        Playwright --> Recorder[NetworkRecorder: Fetch / XHR / WS]
         Recorder --> Mirror[Mirrored Asset Filesystem]
     end
 
-    subgraph AUDIT [03. 20-Scanner Audit Pipeline]
-        Mirror --> AppSec[Application Audit: Secrets, Endpoints, DOM XSS, Forms, Cookies, CVEs]
-        Mirror --> InfraSec[Perimeter Audit: Headers, Tech, CORS, TLS, DNS, Ports, WAF, Subdomains, Paths]
-        Mirror --> ActiveSec[Active Probes: XSS/SQLi/SSRF Injection, GitHub Dorks, OSINT Harvester]
+    subgraph AUDIT [03. 21-Scanner Audit Matrix]
+        Mirror --> StaticAudit[Static: Secrets, Endpoints, DOM XSS, Forms, Cookies, CVEs, Emails]
+        Mirror --> InfraAudit[Perimeter: Headers, Tech, CORS, TLS, DNS, Ports, WAF, Subdomains, Paths]
+        Mirror --> ActiveAudit[Active: Parameter Injections, GitHub Dorks, Screenshots]
+        Mirror --> IntelAudit[Scanner #21: Scenario Intelligence & Canary Probing]
+        IntelAudit <--> IntelDB[(Offline SQLite FTS5: 30,297 Records)]
     end
 
-    subgraph TOOLS [04. External Toolchain Integration]
-        Auth --> Burp[Burp Suite Proxy 127.0.0.1:8080 & Trusted CA]
-        AppSec --> ToolRunner[External Tool Orchestrator]
-        ToolRunner --> Binaries[Nmap / Nuclei / SQLmap / Gobuster / HTTPX / Subfinder]
+    subgraph BRAIN [04. Correlation & AI Engine]
+        StaticAudit & InfraAudit & ActiveAudit & IntelAudit --> Correlator[15 Attack Chain Correlator]
+        Correlator --> CVSS[CVSS v3.1 Scoring & Risk Grade]
+        Correlator --> History[(SQLite Scan History & Diff Engine)]
     end
 
-    subgraph BRAIN [05. Correlation & Local AI Subsystem]
-        AppSec & InfraSec & ActiveSec & Binaries --> Correlator[Attack Chain Correlator]
-        Correlator --> CVSS[CVSS v3.1 Risk Engine]
-        Correlator --> AI[Dolphin3-Cyber-8B Local AI Agent]
-        AI --> Tools[Agent Toolbox: read_file, search_code, inspect_dom, http_probe, run_tool]
-        Tools --> AI
-    end
-
-    subgraph OUTPUT [06. Reporting & Recon Dossier]
-        CVSS & AI --> HTMLReport[Interactive D3.js Threat Graph & HTML Report]
-        CVSS & AI --> JSONReport[recon_report.json Export]
-        HTMLReport --> DossierUI[Tab 05: Recon Dossier]
+    subgraph OUTPUT [05. Telemetry & Reporting]
+        CVSS --> HTML[Interactive D3.js Dossier: report.html]
+        CVSS --> JSON[Structured Finding Export: report.json]
+        CVSS --> NDJSON[Live Event Stream: --json-stream]
+        CVSS --> Diff[Regression Diff: recon_diff.json]
     end
 ```
 
 ---
 
-## 3. Detailed Tour of the Codebase
+## 3. The 21-Scanner Security Matrix
 
-### Repository Directory Structure
+WebRipper Recon 5.0 executes 21 specialized audit scanners against mirrored assets, server headers, and network endpoints:
+
+| Scanner | ID / Module | Category | Capabilities & Detection Logic |
+| :--- | :--- | :--- | :--- |
+| **01** | `scenarios.py` | Intelligence | Targeted bug bounty canary probes via FTS5 database matching detected tech stacks. |
+| **02** | `tech.py` | Perimeter | Fingerprints CMSs, web frameworks, CDNs, servers, and passive Favicon MD5 hashes. |
+| **03** | `secrets.py` | AppSec | Shannon entropy analysis & 30+ regexes for AWS, Google, GitHub, JWT, Stripe, SSH keys. |
+| **04** | `endpoints.py` | API Recon | Discovers REST, GraphQL, WebSocket, and Next.js routes in minified JS and source files. |
+| **05** | `javascript.py` | Client-Side | Static taint analysis for DOM XSS sinks (`eval`, `innerHTML`, `document.write`). |
+| **06** | `forms.py` | Auth / CSRF | Audits HTML `<form>` tags for plaintext transmission, missing CSRF tokens, weak inputs. |
+| **07** | `cookies.py` | Session Sec | Verifies `Set-Cookie` attributes (`HttpOnly`, `Secure`, `SameSite`, prefix rules). |
+| **08** | `cves.py` | Known CVEs | Cross-references identified software versions with public CVE and exploit databases. |
+| **09** | `headers.py` | Perimeter | Evaluates `HSTS`, `CSP`, `X-Frame-Options`, `Permissions-Policy`, and CORS policies. |
+| **10** | `cors.py` | Origin Audit | Probes origin reflection with credentials (`Origin: https://evil.com` and `null`). |
+| **11** | `tls.py` | Cryptography | Checks certificate expiration, self-signed chains, and deprecated TLS 1.0/1.1 protocols. |
+| **12** | `dns.py` | DNS / OSINT | Resolves A, AAAA, MX, TXT, SPF, CNAME records; detects dangling CNAME pointers. |
+| **13** | `portscan.py` | TCP Perimeter | Non-blocking socket port scanner (ports 21–8443) with HTTP active banner grabbing. |
+| **14** | `waf.py` | WAF Profiling | Fingerprints Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, and Fastly. |
+| **15** | `subdomains.py`| Host Discovery| Resolves curated high-value subdomains (`api`, `dev`, `stage`, `admin`, `vpn`, `auth`). |
+| **16** | `paths.py` | Sensitive Paths| Probes for exposed `.env`, `.git`, `backup.sql`, `phpinfo.php`, `/admin`, `.DS_Store`. |
+| **17** | `vulns.py` | Active Injections| Non-destructive canary injection probes for Reflected XSS, SQLi errors, Open Redirects, SSRF. |
+| **18** | `github_dork.py`| OSINT | Generates targeted GitHub search dork URLs to locate external repository leaks. |
+| **19** | `emails.py` | OSINT | Extracts corporate email addresses, author metadata, and contact directories. |
+| **20** | `screenshots.py`| Visual Recon | Captures high-resolution full-page PNG screenshots via Playwright. |
+| **21** | `External Tools`| CLI Tools | Coordinates external binaries (Nmap, Nuclei, SQLmap, Gobuster, HTTPX, Subfinder). |
+
+---
+
+## 4. Offline Vulnerability Scenario Intelligence Engine
+
+WebRipper Recon 5.0 embeds an offline SQLite FTS5 database ([`app/intelligence/intel.db`](file:///c:/Users/JAI/Desktop/webripper2.0/app/intelligence/intel.db)) containing **30,297 indexed intelligence records**:
+
 ```
-c:\Users\JAI\Desktop\webripper2.0\
-├── main.py                          # Primary launch entrypoint (delegates to app.main)
-├── AGENT_GUIDE.md                   # Operational guide for autonomous AI agents (Claude Code, Antigravity)
-├── CLAUDE.md                        # Quick developer instructions and command cheat-sheet
-├── app/
-│   ├── __init__.py                  # Centralized package version (__version__ = "5.0.0")
-│   ├── main.py                      # Application bootstrap & interactive wizard / CLI dispatcher
-│   ├── cli.py                       # Dual-mode CLI engine: Interactive Terminal Wizard & Headless Agent runner
-│   ├── worker.py                    # Multi-stage background worker (crawling + scanning)
-│   ├── ripper.py                    # Core asynchronous web crawling and asset mirroring engine
-│   ├── stealth.py                   # Anti-bot evasions, Playwright stealth flags, AutoThrottle
-│   ├── correlator.py                # Multi-finding vulnerability correlator & attack chain builder
-│   ├── cvss.py                      # CVSS v3.1 metrics calculation and overall risk grading
-│   ├── models.py                    # Data structures (RipperSettings, Finding, Severity, ScanResult)
-│   ├── report.py                    # D3.js interactive HTML visualizer and JSON exporter
-│   ├── dependencies.py              # Chromium runtime detection and Playwright installer
-│   ├── history.py                   # SQLite local database tracking prior scans and diffs
-│   ├── intelligence/
-│   │   ├── __init__.py              # Scenario Intelligence module exports
-│   │   ├── models.py                # ScenarioRecipe dataclass schema
-│   │   ├── engine.py                # SQLite FTS5 hybrid search engine & fingerprint matching
-│   │   └── catalog.py               # Curated real-world bug bounty scenario recipes (H1, PortSwigger, KEV)
-│   ├── ai/
-│   │   ├── __init__.py              # Subsystem exports
-│   │   ├── agent.py                 # Multi-step autonomous ReAct loop with abort cancellation
-│   │   ├── client.py                # Synchronous & streaming Ollama / OpenAI-compatible API client
-│   │   ├── setup.py                 # Automated Ollama engine discovery and model configuration
-│   │   └── tools.py                 # AgentToolbox (file reading, regex, browser DOM, probes, intel lookup)
-│   ├── tools/
-│   │   ├── __init__.py              # Tool module exports
-│   │   ├── base.py                  # Base dataclass and interfaces for tool runners
-│   │   ├── burp.py                  # Burp Suite detector, installer, CA cert fetcher & converter
-│   │   ├── detector.py              # Detection logic across PATH and %APPDATA%/WebRipper/tools/
-│   │   ├── installer.py             # Asynchronous GitHub release downloader with Zip Slip protection
-│   │   └── runner.py                # Subprocess orchestration with timeout & port extraction
-│   ├── scanners/
-│   │   ├── base.py                  # Base scanner class with timing, progress callback, severity
-│   │   ├── scenarios.py             # Scanner #21: Targeted bug bounty scenario canary probes (FTS5 intel)
-│   │   ├── secrets.py               # Shannon entropy & regex for AWS keys, JWTs, OAuth tokens
-│   │   ├── endpoints.py             # REST & hidden endpoint extraction from scripts and HTML
-│   │   ├── javascript.py            # Static taint analysis for DOM XSS sinks (eval, innerHTML)
-│   │   ├── forms.py                 # Form target auditing, password field exposure, CSRF tokens
-│   │   ├── cookies.py               # Cookie security analysis (HttpOnly, Secure, SameSite)
-│   │   ├── cves.py                  # Detected technology matching against public CVE databases
-│   │   ├── headers.py               # Security header validation (HSTS, CSP, X-Frame-Options)
-│   │   ├── tech.py                  # Web framework, CMS, CDN, and backend fingerprinting
-│   │   ├── cors.py                  # Active origin reflection probing for CORS misconfiguration
-│   │   ├── tls.py                   # SSL certificate expiry, deprecated TLS 1.0/1.1 protocols
-│   │   ├── dns.py                   # A, AAAA, MX, TXT, CNAME analysis and subdomain takeover checks
-│   │   ├── portscan.py              # Socket-based TCP port scanner with HTTP active probing
-│   │   ├── waf.py                   # Fingerprints Cloudflare, AWS WAF, Akamai, Imperva
-│   │   ├── subdomains.py            # DNS brute-force enumeration across common host prefixes
-│   │   ├── paths.py                 # High-risk sensitive file fuzzing (.env, .git, /admin, backups)
-│   │   ├── vulns.py                 # Active parameter reflection probing (XSS, SQLi, SSRF, LFI)
-│   │   ├── github_dork.py           # GitHub Search API reconnaissance for domain-linked leaks
-│   │   ├── emails.py                # Regex extraction of corporate emails and OSINT metadata
-│   │   └── screenshots.py           # Playwright high-resolution full-page screenshot renderer
-│   └── wordlists/
-│       └── paths.py                 # Curated wordlists for path fuzzing and subdomain brute-forcing
-└── tests/                           # 104 comprehensive unit and integration tests (100% pass)
-    ├── test_ai_agent_and_tools.py
-    ├── test_extraction.py
-    ├── test_models.py
-    ├── test_path_sanitize.py
-    ├── test_scraper_enhanced.py
-    └── test_ui_ux_features.py
+┌────────────────────────────────────────────────────────────────────────┐
+│                   WEBRIPPER RECON INTELLIGENCE CATALOG                 │
+├────────────────────────────────────────────────────────────────────────┤
+│ • 11,835 Nuclei Community Signatures & Matchers                       │
+│ • 15,219 HackerOne Disclosed Bug Bounty Reports (with Payouts)         │
+│ •  1,790 CISA Known Exploited Vulnerabilities (KEV) Catalog            │
+│ •  1,363 Curated Scenario Canary Recipes                               │
+│ •     76 Subdomain Takeover Cloud Fingerprints                         │
+│ •     14 PortSwigger Advanced Web Research Methodologies               │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Targeted Canary Probing (Zero WAF Noise)
+Rather than firing thousands of brute-force requests, **Scanner #21** identifies the target's technology stack (e.g., Next.js, Spring Boot, Laravel, Django, WordPress) and dispatches only **15–20 high-confidence, non-destructive canary verification requests**.
+
+Query the database directly from the CLI:
+```bash
+python -m app.main --intel-query "Spring Boot Actuator"
+python -m app.main --intel-query "Next.js Server Actions"
 ```
 
 ---
 
-## 4. Deep Dive into Core Subsystems
+## 5. Correlated Attack Chains (Chains 1–15)
 
-### 4.1 Crawling & Extraction Engine (`app/ripper.py` & `app/stealth.py`)
-Inspired by the best features of modern scraping libraries (such as Scrapling and Scrapy), WebRipper avoids naive `urllib` or `requests` fetching:
-* **Stealth Playwright Chromium:** Uses headless Chromium patched with `--disable-blink-features=AutomationControlled`, customized user agents, realistic viewports, and JS evaluation hooks that delete `window.navigator.webdriver`.
-* **Shadow DOM Extraction:** Recursively penetrates `shadowRoot` trees to extract closed and open web component DOM elements often missed by legacy HTML parsers.
-* **Network Traffic Recorder (`NetworkRecorder`):** Intercepts background HTTP requests made by client-side JavaScript (Fetch/XHR/WebSocket), storing request/response payloads in memory and saving mirrored assets to disk.
-* **AutoThrottle:** An adaptive concurrency regulator that monitors response latency and HTTP 429 status codes, applying exponential backoff and randomized jitter to evade WAF rate limits.
-* **Path Sanitization & Security:** Strict directory traversal protection preventing malicious remote file names from writing outside `%APPDATA%/WebRipper/output/`.
+The correlation engine ([`app/correlator.py`](file:///c:/Users/JAI/Desktop/webripper2.0/app/correlator.py)) synthesizes isolated low- and medium-severity findings into actionable multi-step attack scenarios:
 
-### 4.2 The 20-Scanner Audit Pipeline (`app/scanners/`)
-When WebRipper crawls a site, the mirrored files and live network endpoints are dispatched through 20 specialized audit scanners:
-
-| Scanner | Target Area | What It Detects / How It Works |
-| :--- | :--- | :--- |
-| **`secrets.py`** | Application Code | Scans HTML/JS using high-entropy Shannon calculations and 30+ regexes for AWS keys, Google API tokens, JWTs, Slack webhooks, and private keys. |
-| **`endpoints.py`** | API Discovery | Extracts hidden API routes (`/api/v1/...`, `/graphql`, `/admin/...`) embedded inside minified JavaScript bundles and source code. |
-| **`javascript.py`** | Client Execution | Performs static taint analysis searching for dangerous JavaScript sinks (`eval()`, `innerHTML`, `document.write()`, `Function()`). |
-| **`forms.py`** | Authentication / CSRF | Audits HTML `<form>` tags for unencrypted HTTP actions, missing CSRF tokens, and sensitive password inputs transmitted over plaintext. |
-| **`cookies.py`** | Session Security | Analyzes `Set-Cookie` headers for missing `HttpOnly`, `Secure`, or strict `SameSite` flags. |
-| **`cves.py`** | CVE Vulnerability Mapping | Takes technologies identified during fingerprinting and queries known vulnerability databases for unpatched CVE advisories. |
-| **`headers.py`** | Perimeter Defense | Checks for absence or misconfiguration of `HSTS`, `Content-Security-Policy` (CSP), `X-Frame-Options` (Clickjacking), and `Permissions-Policy`. |
-| **`tech.py`** | Fingerprinting | Inspects response headers (`Server`, `X-Powered-By`), DOM signatures, and script links to identify CMSs (WordPress, Drupal), frameworks (React, Laravel), and CDNs. |
-| **`cors.py`** | Origin Probing | Sends active probes with custom `Origin: https://evil.com` and null origins to detect arbitrary origin reflection with `Access-Control-Allow-Credentials: true`. |
-| **`tls.py`** | Encryption Standards | Audits SSL/TLS certificates for impending expiration, self-signed certificates, and deprecated SSLv3/TLS 1.0/1.1 protocols. |
-| **`dns.py`** | DNS & Takeovers | Resolves A, AAAA, MX, TXT, CNAME, and SPF records. Specifically detects dangling CNAME pointers vulnerable to Subdomain Takeover (e.g. unclaimed S3, GitHub Pages). |
-| **`portscan.py`** | TCP Perimeter | Rapid non-blocking socket scan across high-value ports (80, 443, 8080, 8443, 3000, 22, 21, 3306), grabbing service banners and issuing active HTTP probes. |
-| **`waf.py`** | Evasion Profiling | Sends benign trigger signatures to fingerprint active Web Application Firewalls (Cloudflare, AWS WAF, Akamai, Imperva) and advises evasion tactics. |
-| **`subdomains.py`** | Host Enumeration | Resolves a curated wordlist of high-value subdomain prefixes (`api`, `dev`, `stage`, `admin`, `vpn`, `auth`, `internal`) against the target domain. |
-| **`paths.py`** | Sensitive File Fuzzing | Actively probes for high-risk files (`.env`, `.git/config`, `wp-config.php`, `backup.sql`, `phpinfo.php`, `/admin/login`). |
-| **`vulns.py`** | Active Exploitation | Injects benign verification probes into URL query parameters to detect Reflected XSS, SQL injection error responses, Open Redirects, and Local File Inclusion (LFI). |
-| **`github_dork.py`** | Public OSINT | Generates targeted GitHub search dork URLs to identify third-party public repositories accidentally leaking code or credentials belonging to the target domain. |
-| **`emails.py`** | Social Engineering | Extracts corporate email addresses, author tags, and employee metadata from mirrored documents and code files. |
-| **`screenshots.py`** | Visual Recon | Uses Playwright to render high-resolution PNG screenshots of target web pages for visual reconnaissance and report generation. |
-| **`External Tools`**| CLI Integration | Executes installed external tools (Nmap, Nuclei, etc.) and integrates their findings directly into the report. |
-
-### 4.3 Tool Management & Integration Hub (`app/tools/`)
-WebRipper Recon manages and coordinates third-party offensive security binaries:
-* **Burp Suite Professional / Community (`app/tools/burp.py`):**
-  * Auto-detects local installations across common Windows paths and system `PATH`.
-  * Provides 1-click download of the official PortSwigger installer if missing.
-  * **Automated Root CA Trust:** Pulls PortSwigger's root CA directly from `http://127.0.0.1:8080/cert`, converts DER format to PEM, and stores it in the WebRipper certificate store.
-  * **1-Click Upstream Proxy Routing:** Sets `http://127.0.0.1:8080` as the proxy for both Python HTTP requests and Playwright Chromium sessions.
-* **Portable Tool Installer (`app/tools/installer.py`):**
-  * Asynchronously downloads latest official releases from GitHub (`nuclei`, `gobuster`, `httpx`, `subfinder`) and Python packages (`sqlmap`).
-  * Features **Zip Slip Protection** (`_safe_extract_zip`), strictly validating that extracted file paths do not escape target directories.
-  * Automatically updates Nuclei vulnerability templates (`nuclei -update-templates`) upon download.
-  * Automatically supports both `x86_64` and `amd64` architecture tags on Windows.
-* **Asynchronous Tool Execution (`ToolInstallerThread`):**
-  * All downloads and installations run in background `QThread` workers with Qt signal/slot telemetry. The GUI never blocks, turns white, or displays Windows "Not Responding" warnings.
-
-### 4.4 Local AI Agent Subsystem (`Dolphin3-Cyber-8B-GGUF`) (`app/ai/`)
-WebRipper Recon features an integrated, fully offline autonomous cybersecurity agent specifically designed to run on a local 8B parameter model (`Dolphin3-Cyber-8B-GGUF`):
-* **Why Dolphin3-Cyber-8B?** It is an uncensored, offensive-security fine-tuned model trained on exploit analysis, vulnerability classification, and technical remediation without arbitrary cloud safety refusals.
-* **Ollama Client (`app/ai/client.py`):**
-  * Connects to Ollama (`http://127.0.0.1:11434`) or any OpenAI-compatible server (LM Studio, vLLM, llama.cpp on `127.0.0.1:1234/v1`).
-  * Provides a low-latency non-blocking ping probe (`ping()`), dynamic model listing, and 1-click streaming model pulling from Hugging Face (`hf.co/bartowski/Dolphin3-Cyber-8B-GGUF:Q4_K_M`).
-* **The ReAct Agent Loop (`app/ai/agent.py`):**
-  * Implements Reasoning + Acting (ReAct) with thought scratchpads.
-  * Features an **Abort Cancellation Token** (`self._is_aborted`), allowing the operator to immediately halt the agent between tool invocations without locking the GPU or Python process.
-* **The Agent Toolbox (`app/ai/tools.py`):**
-  The model is granted 6 live tools:
-  1. `read_file(path, max_lines)`: Safely reads files from the mirrored target directory.
-  2. `search_code(query, extension)`: Fast regex search across all mirrored target assets.
-  3. `inspect_web_page(url)`: Launches headless stealth Chromium to render a target page and dump its live DOM structure.
-  4. `http_probe(url, method, headers, data)`: Dispatches active HTTP probes directly to the target (or routes through Burp Suite).
-  5. `run_security_tool(tool, args)`: Executes external CLI binaries (`nuclei`, `nmap`, `httpx`, `subfinder`, `gobuster`, `sqlmap`) and returns stdout.
-  6. `get_scan_findings()`: Returns structured findings and attack chains from memory, or automatically falls back to reading `recon_report.json` from disk.
-
-### 4.5 Attack Chain Correlator & CVSS Engine (`app/correlator.py` & `app/cvss.py`)
-Rather than presenting isolated, noisy alerts, WebRipper's correlation engine matches multiple lower-severity findings to construct realistic multi-stage attack scenarios:
-* **Example Attack Chains:**
-  * `EXPOSED_API_CREDENTIALS`: Hardcoded API Key + Leaked Endpoint -> Unauthorized Data Extraction.
-  * `CORS_AUTHENTICATED_THEFT`: CORS Wildcard Origin + Weak Cookie Flags -> Cross-Origin Session Hijacking.
-  * `DOM_XSS_SESSION_TAKEOVER`: Vulnerable `eval()` / `innerHTML` sink + Missing `HttpOnly` on session cookie -> Full Account Takeover.
-* **Risk Score:** Computes an overall organizational letter grade (`A` through `F`) based on CVSS v3.1 base score metrics.
+* **Chain 01**: Source Code Leak (`.git`) → Credential Extraction → Direct Database Access.
+* **Chain 02**: DOM XSS Sink + Missing CSP + Missing `HttpOnly` → Session Hijacking.
+* **Chain 03**: Sensitive Form + Missing CSRF Token → Unauthorized Account Modification.
+* **Chain 04**: Subdomain Takeover + Wildcard Parent Domain Cookie → Global Session Hijacking.
+* **Chain 05**: CORS Wildcard Origin + Credentials + Sensitive API → Cross-Origin Data Exfiltration.
+* **Chain 06**: Exposed Admin Interface + Disclosed Credentials + No Rate Limit → Administrative Takeover.
+* **Chain 07**: Multiple Critical Perimeter Ports Exposed → Direct Infrastructure Attack.
+* **Chain 08**: Deprecated TLS 1.0/1.1 + Plaintext Login Form → Network Credential Interception.
+* **Chain 09**: Known Unpatched Critical CVE + Exposed Service → Public Exploit Application.
+* **Chain 10**: Next.js Server Actions + Exposed Source Maps → Internal Backend Schema Exploitation.
+* **Chain 11**: Spring Boot Actuator (`/env`, `/heapdump`) + SSRF → Cloud IMDS / IAM Role Takeover.
+* **Chain 12**: Subdomain Takeover + OAuth Callback Whitelist → Global Account Hijacking.
+* **Chain 13**: CORS Origin Reflection + User API Endpoint → Client-Side Mass PII Exfiltration.
+* **Chain 14**: GraphQL Introspection + Array Query Batching → Rate-Limit Bypass & Data Extraction.
+* **Chain 15**: HTTP Request Smuggling (CL.TE / TE.CL) + Cache Header → Persistent Web Cache Poisoning.
 
 ---
 
-## 5. The User Interface: "The Kinetic Monolith"
-
-The GUI ([`app/ui.py`](file:///c:/Users/JAI/Desktop/webripper2.0/app/ui.py)) implements **The Kinetic Monolith** design specification:
-* **Strict Monochromatic Palette:** Canvas (`#101010`), Deep Recess (`#0A0A0A`), Surface Plates (`#181818`), Elevated Plates (`#222222`), Primary Action (`#FFFFFF`), Danger (`#93000A`).
-* **High-Density Brutalism:** 0px border-radius globally, architectural tonal layering, crisp borders, and zero decorative emojis or icons.
-* **High-Contrast Indicators:**
-  * **Unchecked Checkbox:** 18×18px recessed box (`#0A0A0A`) with a bold `2px solid #555555` border.
-  * **Checked Checkbox:** Solid bright white plate (`#FFFFFF`) with a vector jet-black checkmark (`check_black.png`) and bold white text.
-* **Process Lifecycle Teardown (`closeEvent`):**
-  * Cleanly aborts any active crawler threads (`RipperWorker`), terminates active AI inference queries (`AgentWorkerThread`), and joins background tool downloaders. No orphaned Python or Ollama processes are left behind on exit.
-
-### The Five Primary Workspaces
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [01] MISSION CONTROL │ [02] AUDIT MATRIX │ [03] INTEGRATION HUB │ [04] CYBER AGENT │ [05] DOSSIER │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ • Target URL & Directory                 • Burp Suite Status & CA Sync                 │
-│ • Audit Profile (Quick/Std/Aggressive)    • Nmap & Portable Toolchain (Nuclei, SQLmap)  │
-│ • Workers, Depth, Timeout, Max Files     • Local Ollama AI Workstation (Dolphin3-Cyber)│
-│ • Live Telemetry & Console Log           • Correlated Attack Chains & HTML Report      │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
-#### Workspace 01 // MISSION CONTROL
-* **Target Identifier:** Primary target URL (e.g. `https://target.com`).
-* **Audit Profile Selector:**
-  * `01 // QUICK (PASSIVE & SURFACE RECON)`: Static asset analysis, zero active payloads, near-zero WAF footprint.
-  * `02 // STANDARD (BALANCED AUDIT - RECOMMENDED)`: Passive recon + non-destructive active probes (CORS, cookies, CVE match, portscan).
-  * `03 // AGGRESSIVE (DEEP ENUMERATION & ACTIVE FUZZING)`: Full active injection testing (XSS/SQLi/SSRF/LFI), directory fuzzing, and complete port sweeps.
-* **Dynamic Implication Banner:** Displays real-time operational risk and noise footprint whenever the profile changes.
-* **Concurrency Controls with Explanations:**
-  * **Workers (1–50):** 1–3 for Stealth/Low WAF risk, 5–10 for Balanced throughput, 20+ for Aggressive/Rate-limit risk.
-  * **Depth (1–10):** 1 for Root only, 2 for Root + 1st degree links (Recommended), 3+ for Recursive deep crawling.
-  * **Max Files:** Circuit breaker preventing infinite crawler loops on dynamic web applications.
-  * **Timeout (5–120s):** Per-request latency ceiling before dropping unresponsive endpoints.
-* **Crawl Evasion Flags:** Same Origin Confinement, Stealth Playwright, Robots.txt compliance, and Automatic AI Summary generation.
-
-#### Workspace 02 // AUDIT MATRIX
-* **Quick Presets:** `[ ALL 20 SCANNERS ]`, `[ RECOMMENDED (STANDARD) ]`, `[ PASSIVE ONLY (STEALTH) ]`, `[ CLEAR ALL ]`.
-* **Categorized Modules:**
-  * **Application Audit:** Secrets, Endpoints, DOM XSS, Forms, Cookies, CVE Mapper.
-  * **Perimeter Audit:** Security Headers, Tech Fingerprinting, CORS Probes, TLS Ciphers, DNS Records, TCP Ports, WAF Probing, Subdomain Brute-Forcing, Sensitive Paths.
-  * **Active Probes:** Active Parameter Injections, GitHub Leak Dorks, OSINT Harvester, Full Page Screenshots, External Tool Integration.
-* **Authentication Injection & Proxy:** Injected Cookie header, Bearer token, Upstream Proxy (`http://127.0.0.1:8080`), and Multi-Target batch scanning list.
-
-#### Workspace 03 // INTEGRATION HUB
-* **Featured Engines:**
-  * **Burp Suite:** Real-time proxy detection (`[LISTENING // 127.0.0.1:8080]`), 1-click PortSwigger download, Trust CA certificate fetcher, and 1-click proxy routing.
-  * **Nmap Network Scanner:** Detection and installer download.
-* **Portable Toolchain Grid:** Compact 2-column layout displaying **Nuclei, SQLmap, Gobuster, HTTPX, and Subfinder** with status badges (`[INSTALLED // READY]` vs `[MISSING]`).
-* **Non-Blocking Batch Actions:** `[ INSTALL ALL MISSING TOOLS ]` with an active progress bar and `[ ABORT INSTALLATION ]` button.
-
-#### Workspace 04 // CYBER AGENT
-* **Endpoint & Connection Deck:** Editable Ollama / OpenAI endpoint (default `http://127.0.0.1:11434`), `[ TEST CONNECTION / PING ]` button with millisecond latency readout, model selector dropdown, and `[ PULL DOLPHIN3-CYBER-8B ]` action.
-* **Staged Autonomous Missions:**
-  * `1. TRIAGE ALL FINDINGS`: Analyzes scan results, eliminates false positives, and calculates business impact.
-  * `2. AUDIT AUTHENTICATION & APIS`: Inspects mirrored JS and network logs for auth bypasses and leaked API keys.
-  * `3. VERIFY ATTACK CHAINS`: Generates step-by-step reproduction instructions and PoC exploit scripts.
-  * `4. SYNTHESIZE EXECUTIVE REPORT`: Writes an executive threat assessment and technical remediation roadmap.
-  * **The Staging Workflow:** Clicking any preset does **not** auto-dispatch immediately; it stages the prompt in the editor, displays `[PROMPT STAGED: REVIEW OR CUSTOMIZE BELOW]`, and allows the operator to review and edit before clicking `[ DISPATCH MISSION ]`.
-* **Real-time Terminal Stream:** Live execution console displaying `[THOUGHT]`, `[ACTION]`, `[OBSERVATION]`, and `[FINAL ANALYSIS]` blocks. Includes an immediate `[ ABORT MISSION ]` button.
-
-#### Workspace 05 // RECON DOSSIER
-* **Monolithic Risk Metrics:** Large Risk Grade (`A` through `F`), Severity distribution (`CRITICAL // HIGH // MEDIUM // LOW // INFO`), and total attack chains count.
-* **Actions:** `[ VIEW HTML REPORT ]` (opens interactive D3.js report in browser), `[ BROWSE MIRRORED FILES ]` (opens local directory in Windows Explorer).
-* **Consolidated Dossier Feed:** Formatted text output of all correlated attack chains and critical/high vulnerabilities.
-
----
-
-## 6. End-to-End Operational Workflow
-
-### Typical Security Audit Walkthrough
-
-```
-Step 1: LAUNCH & VERIFY ENGINE
-  └─ Start WebRipper Recon (py main.py)
-  └─ Tab 03: Click [SYNC STATUS] or [INSTALL ALL MISSING TOOLS] to ensure Nuclei/HTTPX/etc. are ready.
-  └─ Tab 04: Click [TEST CONNECTION / PING] to ensure Ollama (Dolphin3-Cyber-8B) is online.
-
-Step 2: CONFIGURE TARGET IN MISSION CONTROL
-  └─ Tab 01: Enter target URL (e.g. https://example.com).
-  └─ Select Audit Profile: STANDARD (Balanced) or AGGRESSIVE (Active Fuzzing).
-  └─ Check Concurrency: Workers (10), Depth (2), Max Files (500), Timeout (15s).
-  └─ (Optional) Tab 02: Add session Cookie or Bearer token for authenticated scanning.
-  └─ Click [ EXECUTE RECONNAISSANCE ].
-
-Step 3: AUTOMATED RECON & SCANNING
-  └─ Phase 1: Stealth Playwright mirrors HTML, JS, CSS, images, and background Fetch/XHR traffic.
-  └─ Phase 2: 20 Scanners audit mirrored files and endpoints for secrets, DOM XSS, CORS, CVEs, etc.
-  └─ Phase 3: External tools (Nmap/Nuclei) execute if enabled.
-  └─ Phase 4: Attack Chain Correlator connects findings into multi-stage exploit paths.
-  └─ Phase 5: Dolphin3-Cyber-8B writes an executive threat narrative.
-  └─ UI automatically switches to Tab 05 (Recon Dossier) with Risk Grade and findings summary.
-
-Step 4: AUTONOMOUS AI INVESTIGATION
-  └─ Tab 04 (Cyber Agent): Click [1. TRIAGE ALL FINDINGS] or [3. VERIFY ATTACK CHAINS].
-  └─ Prompt stages in editor. Add custom scope constraints if desired.
-  └─ Click [ DISPATCH MISSION ].
-  └─ Agent uses tools (search_code, read_file, http_probe, inspect_web_page) to verify vulnerabilities.
-  └─ Review live reasoning and exploit scenarios in the terminal stream.
-
-Step 5: REPORT EXPORT & REMEDIATION
-  └─ Tab 05: Click [ VIEW HTML REPORT ] to inspect the interactive D3.js force-directed graph.
-  └─ Share recon_report.html and recon_report.json with stakeholders.
-```
-
----
-
-## 7. Installation & Setup Prerequisites
+## 6. Installation & Prerequisites
 
 ### System Requirements
-* **Operating System:** Windows 10/11 64-bit (macOS/Linux compatible CLI/engine)
-* **Python Runtime:** Python 3.10 – 3.14 (64-bit)
-* **Hardware for Local AI:** 16 GB+ RAM (NVIDIA GPU with 8 GB+ VRAM recommended for fast 8B GGUF inference, or CPU with AVX2)
+* **Operating System**: Windows 10/11, macOS, Linux (Ubuntu 20.04+, Debian, RHEL).
+* **Python Runtime**: Python 3.11, 3.12, 3.13, or 3.14 (64-bit).
+* **Chromium**: Managed automatically via Playwright.
 
-### Automated Setup
-1. **Clone the repository:**
-   ```powershell
-   git clone https://github.com/your-org/webripper2.0.git
-   cd webripper2.0
-   ```
+### Quick Start
 
-2. **Install Python dependencies:**
-   ```powershell
-   py -m pip install -r requirements.txt
-   ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-username/webripper2.0.git
+cd webripper2.0
 
-3. **Install Playwright Browsers:**
-   ```powershell
-   py -m playwright install chromium
-   ```
+# 2. Create and activate a virtual environment
+python -m venv .venv
 
-4. **Install Ollama & Dolphin3-Cyber:**
-   * Download and install Ollama from [ollama.com](https://ollama.com).
-   * Pull the recommended cybersecurity model:
-     ```powershell
-     ollama pull hf.co/bartowski/Dolphin3-Cyber-8B-GGUF:Q4_K_M
-     ```
-     *(Or pull directly within WebRipper Recon's Tab 04 by clicking `[ PULL DOLPHIN3-CYBER-8B ]`)*
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
 
-5. **Launch WebRipper Recon:**
-   ```powershell
-   py main.py
-   ```
+# 3. Install dependencies
+pip install -r requirements.txt
 
----
+# 4. Install Playwright browser engine
+playwright install chromium
 
-## 8. Testing & Quality Assurance
-
-The codebase includes a comprehensive pytest suite covering all scanners, data models, path sanitization, AI tools, and UI/UX threads:
-
-```powershell
-# Run the complete test suite
-py -m pytest
+# 5. Verify the installation (all 185 tests passing)
+pytest tests/ -v
 ```
 
-### Test Suite Status
-* **104 unit & integration tests passing** in under 4 seconds.
-* Tests verify:
-  * Checkbox asset generation & QSS stylesheet binding.
-  * Agent abort cancellation token behavior.
-  * Low-latency Ollama ping and dynamic model switching.
-  * Asynchronous mission staging (ensuring presets do not fire prematurely).
-  * URL path traversal sanitization and Zip Slip archive protection.
-  * Stealth Playwright integration and DOM extraction.
+---
+
+## 7. Command-Line Reference & Invocations
+
+### Common Operational Commands
+
+```bash
+# 1. Interactive Terminal Wizard (human-guided walkthrough)
+python -m app.main --wizard
+
+# 2. Automated audit with HTML report and JSON findings
+python -m app.main https://target.local -o report.html --json report.json
+
+# 3. Stealth passive reconnaissance (zero active network payloads)
+python -m app.main https://target.local --profile quick --scanners secrets,headers,tech,cves
+
+# 4. Authenticated API audit with bearer token and request delay
+python -m app.main https://target.local --token "ey..." --delay 0.5 -o report.html
+
+# 5. Real-time NDJSON telemetry stream (ideal for CI/CD & AI agents)
+python -m app.main https://target.local --json-stream
+
+# 6. Baseline regression diffing
+python -m app.main https://target.local --diff prev_report.json -o diff_report.html
+
+# 7. Start native Model Context Protocol (MCP) server
+python -m app.mcp
+```
+
+### Complete Flag Matrix
+
+| Flag | Argument | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `target` or `--url` | String | Positional | Primary target URL or domain for authorized audit. |
+| `--profile` | Enum | `standard` | Audit profile: `quick` (passive), `standard` (balanced), `aggressive` (active). |
+| `-o`, `--output` | Filepath | None | Destination path for self-contained D3.js interactive HTML report. |
+| `--json` | Filepath | None | Destination path for machine-readable JSON finding report. |
+| `--depth` | Integer | `2` | Link crawler traversal depth limit. |
+| `--timeout` | Integer | `30` | Socket and HTTP request timeout in seconds. |
+| `--delay` | Float | `0.0` | Injected delay between requests (seconds) for rate limit evasion. |
+| `--scanners` | Comma-List | All | Filter scanners (e.g. `secrets,headers,scenarios,endpoints`). |
+| `--no-scenarios` | Flag | `False` | Disables Scanner #21 (vulnerability scenario canary probes). |
+| `--no-tools` | Flag | `False` | Disables external tool execution (Nmap, Nuclei, SQLmap). |
+| `--cookie` | String | None | Session cookie string for authenticated audits. |
+| `--token` | String | None | Bearer token for authenticated API audits. |
+| `--header` | String | None | Custom HTTP header (format `'Name: Value'`, repeatable). |
+| `--json-stream` | Flag | `False` | Streams real-time NDJSON audit telemetry directly to `stdout`. |
+| `--stream-file` | Filepath | None | Writes real-time NDJSON telemetry to a designated log file. |
+| `--diff` | Filepath | None | Compares current scan against a prior JSON baseline report. |
+| `--intel-query` | String | None | Queries local SQLite FTS5 intelligence catalog and exits. |
+| `--wizard` | Flag | `False` | Launches the interactive terminal configuration wizard. |
+| `--mcp` | Flag | `False` | Starts the Model Context Protocol stdio server. |
+| `-q`, `--quiet` | Flag | `False` | Suppresses decorative output; preserves machine exit code. |
+| `-v`, `--verbose` | Flag | `False` | Displays per-file download and scanning debug telemetry. |
 
 ---
 
-## 9. Security & Legal Notice
+## 8. Semantic Exit Codes
 
-WebRipper Recon is designed strictly for **authorized security audits, penetration tests, and defensive vulnerability assessments** on networks and web applications owned by you or where you possess explicit, written permission from the target owner. 
+WebRipper Recon adheres to deterministic exit codes for programmatic automation and CI/CD gating:
 
-Adversarial reconnaissance and vulnerability probing against unauthorized targets without prior consent is illegal under the Computer Fraud and Abuse Act (CFAA), UK Computer Misuse Act, and equivalent international cybersecurity legislation.
+| Exit Code | Constant | Meaning & Recommended Action |
+| :---: | :--- | :--- |
+| **`0`** | `CLEAN` | Scan completed successfully. Zero CRITICAL or HIGH findings detected. |
+| **`1`** | `ERROR` | Operational failure (network error, invalid configuration, unresolvable domain). |
+| **`2`** | `RISK_DETECTED` | **CRITICAL** or **HIGH** severity security findings detected. Gate the build. |
+| **`3`** | `WAF_BLOCKED` | Request traffic was intercepted by a WAF or Security Gateway (HTTP 403). |
+| **`4`** | `RATE_LIMITED` | Target enforced HTTP 429 Too Many Requests. Increase `--delay` and retry. |
 
 ---
-*WebRipper Recon 5.0 — The Kinetic Monolith // Engineered for High-Density Operational Precision.*
 
+## 9. Model Context Protocol (MCP) Integration
+
+WebRipper Recon provides an embedded stdio JSON-RPC 2.0 server ([`app/mcp/server.py`](file:///c:/Users/JAI/Desktop/webripper2.0/app/mcp/server.py)) compatible with **Claude Code**, **Cursor**, **Antigravity**, and **Claude Desktop**.
+
+### Cursor & Claude Code Configuration (`.cursor/mcp.json` or `.mcp.json`)
+```json
+{
+  "mcpServers": {
+    "webripper": {
+      "command": "python",
+      "args": ["-m", "app.mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+* **`webripper_scan`**: Runs an authorized background security audit against a target URL with configurable profiles and scanner filters.
+* **`lookup_vulnerability_intelligence`**: Instantly searches 30,297 records across Nuclei, HackerOne, CISA KEV, and PortSwigger recipes using SQLite FTS5.
+* **`run_canary_probe`**: Executes a single non-destructive canary verification probe against a specific URL endpoint.
+* **`get_attack_chains`**: Synthesizes correlated multi-stage attack paths from past or active scan findings.
+* **`list_scans`**: Queries scan history, finding counts, and risk grades from local SQLite history.
+
+---
+
+## 10. CI/CD Pipeline Integration (GitHub Actions)
+
+Integrate WebRipper Recon directly into your security regression testing pipeline:
+
+```yaml
+name: Security Reconnaissance & Posture Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Execute Security Audit
+        run: |
+          python -m app.main https://staging.example.com \
+            --profile standard \
+            -o report.html \
+            --json report.json
+        # Exit code 2 will automatically fail the job if CRITICAL/HIGH findings are found.
+
+      - name: Upload Security Findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-recon-report
+          path: |
+            report.html
+            report.json
+```
+
+---
+
+## 11. Security & Legal Notice
+
+WebRipper Recon 5.0 is designed strictly for **authorized security audits, defensive posture assessments, and vulnerability remediation** on systems, domains, and applications owned by you or where you possess explicit, written permission from the system owner.
+
+Unauthorized scanning, probing, or testing of third-party systems without prior authorization violates the Computer Fraud and Abuse Act (CFAA), the UK Computer Misuse Act, and international cybersecurity statutes.
+
+---
+*WebRipper Recon 5.0 — Pure-CLI & Agent-Native Security Engineering.*

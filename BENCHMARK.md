@@ -3,7 +3,7 @@
 - **Harness Version:** `5.0.0-phase9`
 - **Execution Timestamp:** `2026-11-21 15:57:59 UTC`
 - **Execution Mode:** Deterministic Local Fixture Suite (Offline / CI)
-- **Audited Testbeds:** OWASP Juice Shop, WebGoat, crAPI
+- **Audited Testbeds:** Fixtures modelled on OWASP Juice Shop, WebGoat, and crAPI vulnerability classes
 
 ---
 

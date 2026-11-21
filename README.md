@@ -494,17 +494,17 @@ webripper intel update
 
 ## 18. Public Benchmark Harness & Ground Truth Scorecard
 
-WebRipper Recon 5.0 includes an automated benchmark harness (`benchmarks/runner.py`) evaluated against registered ground truth vulnerability fixtures:
-* **OWASP Juice Shop** (15 ground-truth targets)
-* **OWASP WebGoat** (12 ground-truth targets)
-* **crAPI** (10 ground-truth targets)
+WebRipper Recon 5.0 includes an automated benchmark harness (`benchmarks/runner.py`) evaluated against local fixture suites modelled on OWASP Juice Shop, WebGoat, and crAPI vulnerability classes:
+* **OWASP Juice Shop** (15 ground-truth targets in modelled fixtures)
+* **OWASP WebGoat** (12 ground-truth targets in modelled fixtures)
+* **crAPI** (10 ground-truth targets in modelled fixtures)
 
 ```bash
 # Execute offline benchmark evaluation
 python -m benchmarks.runner --output BENCHMARK.md --format markdown --min-f1 0.70
 ```
 
-Current benchmark performance across 37 testbed fixtures:
+Current benchmark performance across 37 modelled testbed fixtures:
 * **Precision**: $100\%$ ($0$ False Positives on validated findings)
 * **Recall**: $91.89\%$
 * **Overall $F_1$ Score**: $0.9577$

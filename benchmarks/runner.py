@@ -1,8 +1,8 @@
 """
 WebRipper Recon 5.0 — Benchmark Runner & Deterministic Scorecard Engine.
 
-Executes scans against standard security testbeds (OWASP Juice Shop, WebGoat, crAPI,
-or simulated local fixture suites representing them) and generates deterministic
+Executes scans against deterministic local fixtures modelled on target vulnerability classes
+(OWASP Juice Shop, WebGoat, crAPI) and generates deterministic
 accuracy scorecards per vulnerability class:
   - Injection
   - Auth/IDOR
@@ -582,7 +582,7 @@ def generate_markdown_scorecard(report: BenchmarkSuiteReport) -> str:
         f"- **Harness Version:** `{report.version}`",
         f"- **Execution Timestamp:** `{report.timestamp}`",
         f"- **Execution Mode:** {mode_desc}",
-        f"- **Audited Testbeds:** {tb_names}",
+        f"- **Audited Testbeds:** Fixtures modelled on {tb_names} vulnerability classes",
         "",
         "---",
         "",

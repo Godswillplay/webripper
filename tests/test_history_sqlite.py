@@ -61,6 +61,15 @@ def test_history_search(monkeypatch):
         assert results[0]["title"] == "Leaked AWS Key"
         assert results[0]["domain"] == "cloud-target.org"
 
+        # Search by domain only with limit (no keyword)
+        dom_results = history.search_history(domain="cloud-target.org", limit=5)
+        assert len(dom_results) == 1
+        assert dom_results[0]["title"] == "Leaked AWS Key"
+
+        # Search with both keyword and limit
+        kw_results = history.search_history(keyword="AWS", domain="cloud-target.org", limit=1)
+        assert len(kw_results) == 1
+
 
 def test_history_diff(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:

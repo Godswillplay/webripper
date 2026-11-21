@@ -228,6 +228,44 @@ def test_mcp_server_get_attack_chains_empty():
     assert "No previous reconnaissance scan history found" in content[0]["text"]
 
 
+def test_mcp_server_get_attack_chains_with_history():
+    from app.history import ScanRecord
+    server = WebRipperMCPServer()
+    req = {
+        "jsonrpc": "2.0",
+        "id": 41,
+        "method": "tools/call",
+        "params": {
+            "name": "get_attack_chains",
+            "arguments": {"domain": "target.local"},
+        },
+    }
+
+    mock_record = ScanRecord(
+        path="dummy.json",
+        domain="target.local",
+        timestamp="2026-11-21T00:00:00",
+        finding_count=2,
+        critical_count=1,
+        high_count=1,
+        medium_count=0,
+    )
+    mock_findings = [
+        {"severity": "CRITICAL", "title": "SQL Injection in /api/users", "category": "vulns"},
+        {"severity": "HIGH", "title": "Missing HSTS Header", "category": "headers"},
+    ]
+
+    with patch("app.history.list_scans", return_value=[mock_record]):
+        with patch("app.history.search_history", return_value=mock_findings) as mock_search:
+            resp = server.handle_request(req)
+            mock_search.assert_called_once_with(domain="target.local", limit=50)
+
+    assert resp["id"] == 41
+    text = resp["result"]["content"][0]["text"]
+    assert "Attack Chains for Domain: target.local" in text
+    assert "SQL Injection in /api/users" in text
+
+
 def test_mcp_server_unknown_method():
     server = WebRipperMCPServer()
     req = {

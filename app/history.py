@@ -374,8 +374,8 @@ def load_scan(path: str) -> List[Dict]:
     return []
 
 
-def search_history(keyword: str, domain: Optional[str] = None) -> List[Dict]:
-    """Search for findings across historical scans matching a keyword."""
+def search_history(keyword: str = "", domain: Optional[str] = None, limit: int = 100) -> List[Dict]:
+    """Search for findings across historical scans matching a keyword and/or domain."""
     results: List[Dict] = []
     conn = None
     try:
@@ -385,13 +385,21 @@ def search_history(keyword: str, domain: Optional[str] = None) -> List[Dict]:
             SELECT s.domain, s.timestamp, f.category, f.title, f.severity, f.evidence
             FROM findings f
             JOIN scans s ON f.scan_id = s.id
-            WHERE (f.title LIKE ? OR f.evidence LIKE ? OR f.description LIKE ?)
         """
-        params: List[Any] = [f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"]
+        conditions: List[str] = []
+        params: List[Any] = []
+        if keyword:
+            conditions.append("(f.title LIKE ? OR f.evidence LIKE ? OR f.description LIKE ?)")
+            params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
         if domain:
-            query += " AND s.domain LIKE ?"
+            conditions.append("s.domain LIKE ?")
             params.append(f"%{domain}%")
-        query += " ORDER BY s.timestamp DESC LIMIT 100"
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY s.timestamp DESC LIMIT ?"
+        params.append(max(1, limit))
 
         cur.execute(query, params)
         for r in cur.fetchall():

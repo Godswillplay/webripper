@@ -1,16 +1,19 @@
 # WEBRIPPER RECON 5.0 — COMPREHENSIVE ARCHITECTURE & OPERATIONAL MANUAL
 
 ```
-========================================================================================
-██╗    ██╗███████╗██████╗ ██████╗ ██╗██████╗ ██████╗ ███████╗██████╗     ██████╗      ██████╗ 
-██║    ██║██╔════╝██╔══██╗██╔══██╗██║██╔══██╗██╔══██╗██╔════╝██╔══██╗    ██╔════╝     ██╔═████╗
-██║ █╗ ██║█████╗  ██████╔╝██████╔╝██║██████╔╝██████╔╝█████╗  ██████╔╝    ███████╗     ██║██╔██║
-██║███╗██║██╔══╝  ██╔══██╗██╔══██╗██║██╔═══╝ ██╔═══╝ ██╔══╝  ██╔══██╗    ██╔═══██╗    ████╔╝██║
-╚███╔███╔╝███████╗██████╔╝██║  ██║██║██║     ██║     ███████╗██║  ██║    ╚██████╔╝    ╚██████╔╝
- ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝     ╚═════╝      ╚═════╝ 
-========================================================================================
-PURE-CLI & AGENT-NATIVE AUTOMATED WEB SECURITY RECONNAISSANCE ENGINE
-========================================================================================
+========================================================================================================
+   _       ______________  ______  ____  ____  __________     ____  ________________  _   __   ______
+  | |     / / ____/ __ )/ / __ \/ __ \/ __ \/ ____/ __ \   / __ \/ ____/ ____/ __ \/ | / /  / ____/
+  | | /| / / __/ / __  / / /_/ / /_/ / /_/ / __/ / /_/ /  / /_/ / __/ / /   / / / /  |/ /  /___ \ 
+  | |/ |/ / /___/ /_/ / / _, _/ ____/ ____/ /___/ _, _/  / _, _/ /___/ /___/ /_/ / /|  /  ____/ / 
+  |__/|__/_____/_____/_/_/ |_/_/   /_/   /_____/_/ |_|  /_/ |_/_____/\____/\____/_/ |_/  /_____/  
+========================================================================================================
+ [>] AGENT-NATIVE AUTOMATED RECONNAISSANCE ENGINE // PURE-CLI CYBER DEFENSE PLATFORM // PYTHON 3.11+
+========================================================================================================
+ ┌────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  CORE: Pure Python 3.11+       AUDIT: 21 Specialized Scanners     INTELLIGENCE: 30,297 FTS5 Recs   │
+ │  RUNTIME: Headless / Zero-GUI  CHAINS: 15 Attack Path Correlators PROTOCOL: MCP JSON-RPC 2.0 Stdio│
+ └────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -36,6 +39,25 @@ Designed for DevSecOps engineers, security researchers, and autonomous AI coding
 * **15 Correlated Attack Chains**: Correlates isolated findings into composite attack paths (e.g., Next.js Server Actions + Source Maps, Spring Boot Actuators + Cloud IMDS SSRF, Subdomain Takeover + OAuth Callback Whitelist).
 * **Stealth Playwright Crawler**: Anti-fingerprinted browser crawling with Shadow DOM penetration, network traffic recording (Fetch/XHR/WebSocket), and adaptive auto-throttling.
 * **Interactive D3.js Threat Dossier**: Self-contained single-file HTML reports featuring force-directed attack graphs, CVSS 3.1 risk scores, and machine-readable JSON exports.
+
+```text
+                     .---.
+                    /     \               [+] MISSION RECONNAISSANCE COCKPIT [+]
+                   | () () |
+                    \  ^  /               TARGET  : https://staging.example.com
+                     |||||                PROFILE : STANDARD (Balanced Audit, Depth 2)
+                     |||||                ENGINE  : WebRipper Recon 5.0 (Pure-CLI)
+                 .---'     '---.          STATUS  : 21 Scanners Dispatched | AutoThrottle ±15%
+                /               \
+               |  [!] CRIT : 01  |        [!] FINDINGS RADAR DISCOVERY
+               |  [*] HIGH : 02  |        ----------------------------------------------------
+               |  [-] MED  : 03  |        CRITICAL [████████████████████] 1 (AWS Secret in JS)
+               |  [.] LOW  : 05  |        HIGH     [██████████░░░░░░░░░░] 2 (CORS Creds + Next.js)
+                \               /         MEDIUM   [██████░░░░░░░░░░░░░░] 3 (No CSP, No CSRF, SameSite)
+                 '-------------'          LOW/INFO [████░░░░░░░░░░░░░░░░] 5 (Server Header, TLS 1.2)
+                        |
+                        +---------------> OVERALL SECURITY POSTURE GRADE: [ C ] (CVSS: 5.8)
+```
 
 ---
 
@@ -163,6 +185,23 @@ The correlation engine ([`app/correlator.py`](file:///c:/Users/JAI/Desktop/webri
 * **Chain 14**: GraphQL Introspection + Array Query Batching → Rate-Limit Bypass & Data Extraction.
 * **Chain 15**: HTTP Request Smuggling (CL.TE / TE.CL) + Cache Header → Persistent Web Cache Poisoning.
 
+```text
+  [ ATTACK CHAIN CORRELATION // MULTI-STAGE EXPLOIT MAPPING ]
+
+   ┌────────────────────────────────┐         ┌────────────────────────────────┐
+   │  PHASE 1: RECON / ASSET LEAK   │         │  PHASE 2: DECOMPILATION        │
+   │  Crawler mirrors production JS ├────────►│  Reconstruct original TS types │
+   │  /_next/static/chunks/*.js.map │         │  and internal API endpoints    │
+   └────────────────────────────────┘         └────────────────────────────────┘
+                                                               │
+                                                               ▼
+   ┌────────────────────────────────┐         ┌────────────────────────────────┐
+   │  CVSS v3.1 SEVERITY: HIGH      │         │  PHASE 3: TARGETED ACTION      │
+   │  Impact: Unauthorized backend  │◄────────┤  Forge Next-Action headers &   │
+   │  state mutation & data access  │         │  tamper with Server Actions    │
+   └────────────────────────────────┘         └────────────────────────────────┘
+```
+
 ---
 
 ## 6. Installation & Prerequisites
@@ -200,6 +239,24 @@ pytest tests/ -v
 ---
 
 ## 7. Command-Line Reference & Invocations
+
+```text
+ ╔══════════════════════════════════════════════════════════════════════════════════════════════╗
+ ║                         WEBRIPPER RECON 5.0 — INTERACTIVE TERMINAL WIZARD                    ║
+ ╠══════════════════════════════════════════════════════════════════════════════════════════════╣
+ ║  [?] Target domain or URL        : https://staging.example.com                               ║
+ ║  [?] Scan profile                : [2] Standard (Balanced passive recon + active probes)    ║
+ ║  [?] Crawler traversal depth     : 2                                                         ║
+ ║  [?] Concurrency workers [1-50]  : 10                                                        ║
+ ║  [?] Request delay jitter (sec)  : 0.1                                                       ║
+ ║  [?] HTML report destination     : report.html                                               ║
+ ║  [?] JSON findings export path   : report.json                                               ║
+ ║  [?] Dispatched security modules : [X] All 21 Active & Passive Scanners                      ║
+ ║                                                                                              ║
+ ║  [>] Launching headless stealth Playwright engine...                                         ║
+ ║  [>] Running 21 scanners & querying 30,297 offline vulnerability scenario recipes...         ║
+ ╚══════════════════════════════════════════════════════════════════════════════════════════════╝
+```
 
 ### Common Operational Commands
 

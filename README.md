@@ -240,6 +240,9 @@ pytest tests/ -v
 
 ## 7. Command-Line Reference & Invocations
 
+### Interactive Terminal Wizard (Live CLI Session)
+Run `python -m app.main --wizard` (or `python main.py`) to launch the interactive prompt-driven setup:
+
 ```text
  ╔══════════════════════════════════════════════════════════════════════════════════════════════╗
  ║                         WEBRIPPER RECON 5.0 — INTERACTIVE TERMINAL WIZARD                    ║

@@ -69,6 +69,7 @@ def generate_html_report(report: ReconReport) -> str:
 <nav class="sidebar">
   <div class="nav-title">SECTIONS</div>
   <a href="#summary">Executive Summary</a>
+  {"<a href='#verified-proofs' style='color:#22c55e;font-weight:bold'>🛡️ Verified Proofs</a>" if any(getattr(f, 'confidence', '') == 'VERIFIED' for f in report.all_findings) else ""}
   {"<a href='#chains'>⚡ Attack Chains</a>" if report.attack_chains else ""}
   {"<a href='#headers'>Security Headers</a>" if "headers" in scans else ""}
   {"<a href='#tech'>Tech Stack</a>" if "tech" in scans else ""}
@@ -148,6 +149,32 @@ def generate_html_report(report: ReconReport) -> str:
 ''' if getattr(report, "ai_summary", "") else ""}
 </section>
 """
+
+    # Verified Findings & Machine-Checkable Proofs Section
+    all_verified = [f for f in report.all_findings if getattr(f, "confidence", "") == "VERIFIED"]
+    if all_verified:
+        html += f"""
+<section id="verified-proofs" style="border:2px solid #22c55e;border-radius:8px;padding:20px;margin:24px 0;background:#064e3b12">
+<h2 style="color:#22c55e">🛡️ Verified Security Findings ({len(all_verified)} Machine-Checkable Proofs Attached)</h2>
+<p style="color:#94a3b8">Each finding below was confirmed with a deterministic differential probe or DOM execution proof. Zero heuristic speculation.</p>
+<table class="wide-table">
+<thead><tr><th>Severity</th><th>Confidence</th><th>Category</th><th>Finding / Target</th><th>Observed Delta & Proof Artifact</th><th>Remediation</th></tr></thead>
+<tbody>
+"""
+        for f in sorted(all_verified, key=lambda x: x.severity.weight, reverse=True):
+            proof_box = _render_proof_artifact(f)
+            url_line = f"<br><span class='mono dim' style='font-size:11px'>{_esc(f.url)}</span>" if f.url else ""
+            html += (
+                f"<tr>"
+                f"<td>{_sev_badge(f.severity)}</td>"
+                f"<td>{_conf_badge(f)}</td>"
+                f"<td class='mono'>{_esc(f.category)}</td>"
+                f"<td><strong>{_esc(f.title)}</strong><br><span class='dim'>{_esc(f.description[:200])}</span>{url_line}</td>"
+                f"<td>{proof_box}</td>"
+                f"<td class='remediation'>{_esc(f.remediation)}</td>"
+                f"</tr>\n"
+            )
+        html += "</tbody></table></section>\n"
 
     # Security Headers section
     if "headers" in scans:
@@ -308,6 +335,10 @@ def generate_html_report(report: ReconReport) -> str:
 
     # Generic scanner sections for new v4.0 and v5.0 scanners
     for scanner_name, section_id, section_title in [
+        ("bola", "bola", "Broken Object & Function Level Authorization (BOLA/BFLA)"),
+        ("graphql", "graphql", "GraphQL Reconnaissance & Authorization"),
+        ("llmapp", "llmapp", "AI & LLM Application Security"),
+        ("mcptarget", "mcptarget", "Model Context Protocol (MCP) Surface Audit"),
         ("cors", "cors", "CORS Misconfiguration"),
         ("javascript", "javascript", "JavaScript Security"),
         ("forms", "forms", "Form Vulnerabilities"),
@@ -373,6 +404,7 @@ def generate_html_report(report: ReconReport) -> str:
         for f in sorted(sr.findings, key=lambda x: x.severity.weight, reverse=True):
             param = f.metadata.get("parameter", "")
             exploit_text = f.metadata.get("exploit", "")
+            proof_box = _render_proof_artifact(f) if getattr(f, "confidence", "") == "VERIFIED" else ""
             html += (
                 f"<tr>"
                 f"<td>{_sev_badge(f.severity)}</td>"
@@ -380,7 +412,7 @@ def generate_html_report(report: ReconReport) -> str:
                 f"<td>{_cvss_badge(f)}</td>"
                 f"<td><strong>{_esc(f.title)}</strong><br><span class='dim'>{_esc(f.description[:200])}</span></td>"
                 f"<td class='mono'>{_esc(param)}</td>"
-                f"<td><code class='evidence'>{_esc(f.evidence[:300])}</code></td>"
+                f"<td><code class='evidence'>{_esc(f.evidence[:300])}</code>{proof_box}</td>"
                 f"<td class='exploit-cell'>{_esc(exploit_text[:400])}</td>"
                 f"<td class='remediation'>{_esc(f.remediation)}</td>"
                 f"</tr>\n"
@@ -453,7 +485,11 @@ def generate_html_report(report: ReconReport) -> str:
         html += '<section id="chains"><h2>⚡ Attack Chains</h2>\n'
         html += '<p class="section-note">These are multi-step attack paths detected by correlating findings across all scanners. Each chain shows how individual vulnerabilities combine into a more dangerous attack.</p>\n'
         for i, chain in enumerate(report.attack_chains, 1):
-            html += f'<div class="chain-card"><div class="chain-header"><span class="chain-num">CHAIN #{i}</span> {_sev_badge(chain.severity)} <strong>{_esc(chain.name)}</strong></div>\n'
+            conf_str = getattr(chain, "confidence", None)
+            conf_val = conf_str.value if hasattr(conf_str, "value") else str(conf_str or "")
+            hypo = chain.metadata.get("hypothetical", True) if getattr(chain, "metadata", None) else True
+            badge = "<span style='background:#16a34a;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold'>✓ VERIFIED CHAIN</span>" if not hypo and conf_val == "VERIFIED" else "<span style='background:#ca8a04;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold'>⚠ HYPOTHETICAL CHAIN</span>"
+            html += f'<div class="chain-card"><div class="chain-header"><span class="chain-num">CHAIN #{i}</span> {_sev_badge(chain.severity)} {badge} <strong>{_esc(chain.name)}</strong></div>\n'
             html += '<div class="chain-steps">\n'
             for j, step in enumerate(chain.steps, 1):
                 source_tag = f" <span class='dim'>[{_esc(step.source)}]</span>" if step.source else ""
@@ -599,14 +635,59 @@ def _cvss_badge(finding: Finding) -> str:
 def _conf_badge(finding: Finding) -> str:
     """Generate a confidence badge (VERIFIED/LIKELY/POSSIBLE)."""
     conf = getattr(finding, 'confidence', 'POSSIBLE') or 'POSSIBLE'
+    conf_str = str(conf).upper()
     colors = {
         "VERIFIED": "#22c55e",   # green
         "LIKELY": "#f59e0b",     # amber
         "POSSIBLE": "#6b7280",   # gray
         "INFO": "#3b82f6",       # blue
     }
-    color = colors.get(str(conf).upper(), "#6b7280")
-    return f'<span class="conf-badge" style="background:{color};color:#fff;padding:2px 6px;border-radius:3px;font-size:0.7em;font-weight:bold">{_esc(conf)}</span>'
+    color = colors.get(conf_str, "#6b7280")
+    label = f"✓ {conf_str}" if conf_str == "VERIFIED" else conf_str
+    return f'<span class="conf-badge" style="background:{color};color:#fff;padding:2px 6px;border-radius:3px;font-size:0.7em;font-weight:bold">{_esc(label)}</span>'
+
+
+def _render_proof_artifact(finding: Finding) -> str:
+    """Render machine-checkable proof artifact HTML for verified findings."""
+    proof = (finding.metadata or {}).get("proof")
+    if not proof or not isinstance(proof, dict):
+        return ""
+
+    validator = _esc(str(proof.get("validator", "validator")))
+    timestamp = _esc(str(proof.get("verified_at", "")))
+    delta = proof.get("observed_delta", "")
+    delta_str = json.dumps(delta, indent=2) if isinstance(delta, (dict, list)) else str(delta)
+
+    req = proof.get("request", {})
+    req_str = json.dumps(req, indent=2) if isinstance(req, (dict, list)) else str(req)
+
+    resp = proof.get("response", {})
+    resp_str = json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else str(resp)
+
+    return f"""
+<div class="proof-card" style="margin-top:8px;padding:8px 10px;background:#0f172a;border:1px solid #22c55e;border-radius:6px;font-size:11px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span style="color:#22c55e;font-weight:bold">🔬 Machine-Checkable Proof ({validator})</span>
+    <span class="dim" style="font-size:10px">{timestamp}</span>
+  </div>
+  <div style="background:#1e293b;border-left:3px solid #22c55e;padding:4px 8px;margin-bottom:6px;color:#f1f5f9;font-size:11px">
+    <strong>Observed Delta:</strong> {_esc(delta_str)}
+  </div>
+  <details style="margin-top:4px">
+    <summary style="cursor:pointer;color:#38bdf8;font-size:10px">Inspect Raw Proof Artifact (Request & Response Hash)</summary>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">
+      <div>
+        <span class="dim" style="font-size:10px">Probe Request:</span>
+        <pre style="background:#090d16;padding:4px 6px;border-radius:4px;overflow-x:auto;font-size:10px;color:#94a3b8;margin:2px 0">{_esc(req_str)}</pre>
+      </div>
+      <div>
+        <span class="dim" style="font-size:10px">Probe Response / Hash:</span>
+        <pre style="background:#090d16;padding:4px 6px;border-radius:4px;overflow-x:auto;font-size:10px;color:#94a3b8;margin:2px 0">{_esc(resp_str)}</pre>
+      </div>
+    </div>
+  </details>
+</div>
+"""
 
 
 def _build_owasp_compliance(findings: List[Finding]) -> str:

@@ -219,6 +219,59 @@ class RipperWorker(threading.Thread):
                 self.finished.emit(recon)
                 return
 
+            # Phase 2.3: Local User Feedback Profile Filtering
+            try:
+                from .intelligence.feedback import suppress_or_downrank_findings
+                for sr in recon.scan_results:
+                    if sr.findings:
+                        sr.findings = suppress_or_downrank_findings(sr.findings, target=self.settings.url)
+            except Exception as exc:
+                pass
+
+            # Phase 2.5: Proof-Based Validation Engine
+            self._pause_event.wait()
+            if self._is_cancelled:
+                self._emit_cancelled()
+                return
+
+            self._on_progress(ProgressEvent(
+                event_type=EventType.PHASE_CHANGE,
+                message="Validating candidate findings with proof-based verification engine",
+                phase="Validating",
+            ))
+            try:
+                from .validation import ValidationEngine
+                val_engine = ValidationEngine(
+                    settings=self.settings,
+                    progress_callback=self._on_progress,
+                )
+                val_engine.validate_report(recon)
+            except Exception as exc:
+                self._on_progress(ProgressEvent(
+                    event_type=EventType.LOG,
+                    message=f"Validation engine notice: {exc}",
+                ))
+
+            # Phase 2.7: Deduplication & Submission Quality Guard
+            if getattr(self.settings, "enable_dedup", True):
+                try:
+                    from .dedup import cluster_findings, DuplicateRiskScorer
+                    scorer = DuplicateRiskScorer()
+                    for sr in recon.scan_results:
+                        if sr.findings:
+                            sr.findings = cluster_findings(sr.findings)
+                            for f in sr.findings:
+                                scorer.score_finding(f, tech_stack=recon.technologies)
+                except Exception as exc:
+                    self._on_progress(ProgressEvent(
+                        event_type=EventType.LOG,
+                        message=f"Deduplication notice: {exc}",
+                    ))
+
+            if self._is_cancelled:
+                self._emit_cancelled()
+                return
+
             # Phase 3: Detect and run external tools
             if self.settings.use_external_tools and self.settings.profile != "quick":
                 self._run_external_tools(recon)
@@ -233,15 +286,21 @@ class RipperWorker(threading.Thread):
 
             self._pause_event.wait()
 
-            # Phase 4: Correlate findings into attack chains
+            # Phase 4: Correlate findings into attack chains & active step verification
             self._on_progress(ProgressEvent(
                 event_type=EventType.PHASE_CHANGE,
-                message="Correlating findings into attack chains",
+                message="Correlating findings into attack chains and verifying steps",
                 phase="Correlating",
             ))
             try:
                 from .correlator import correlate
                 chains = correlate(recon)
+                if chains and not getattr(recon, "unreachable", False):
+                    try:
+                        from .chains import verify_attack_chains
+                        chains = verify_attack_chains(chains, base_url=self.settings.url, timeout=1.5)
+                    except Exception:
+                        pass
                 recon.attack_chains = chains
                 self._on_progress(ProgressEvent(
                     event_type=EventType.CORRELATION_COMPLETE,
@@ -518,6 +577,46 @@ class RipperWorker(threading.Thread):
             try:
                 from .scanners.scenarios import ScenarioScanner
                 scanners.append(ScenarioScanner(rip_report, cfg, self._on_progress))
+            except ImportError:
+                pass
+
+        # Dual-Identity Differential Engine (BOLA/IDOR & BFLA)
+        has_identities = bool(
+            getattr(cfg, "identity_a_cookie", "")
+            or getattr(cfg, "identity_a_token", "")
+            or getattr(cfg, "identity_b_cookie", "")
+            or getattr(cfg, "identity_b_token", "")
+            or getattr(cfg, "auth_cookie", "")
+            or getattr(cfg, "auth_token", "")
+        )
+        if (getattr(cfg, "scan_bola", False) or "bola" in active_set) and has_identities:
+            try:
+                from .scanners.bola import BOLAScanner
+                scanners.append(BOLAScanner(rip_report, cfg, self._on_progress))
+            except ImportError:
+                pass
+
+        # GraphQL Reconnaissance & Schema Auditor
+        if getattr(cfg, "scan_graphql", False) or "graphql" in active_set:
+            try:
+                from .scanners.graphql import GraphQLScanner
+                scanners.append(GraphQLScanner(rip_report, cfg, self._on_progress))
+            except ImportError:
+                pass
+
+        # LLM Application Prompt Injection Canary Scanner
+        if getattr(cfg, "scan_llmapp", False) or "llmapp" in active_set or "llm" in active_set:
+            try:
+                from .scanners.llmapp import LLMAppScanner
+                scanners.append(LLMAppScanner(rip_report, cfg, self._on_progress))
+            except ImportError:
+                pass
+
+        # MCP Target Auditor (active module requires explicit toggle or opt-in)
+        if getattr(cfg, "scan_mcptarget", False) or "mcptarget" in active_set or "mcp" in active_set:
+            try:
+                from .scanners.mcptarget import MCPTargetScanner
+                scanners.append(MCPTargetScanner(rip_report, cfg, self._on_progress))
             except ImportError:
                 pass
 

@@ -142,6 +142,14 @@ class RipperSettings:
     auth_cookie: str = ""       # Cookie header value for authenticated scanning
     auth_token: str = ""        # Bearer token for authenticated scanning
 
+    # Dual-identity differential scanning (BOLA/IDOR & BFLA)
+    identity_a_cookie: str = ""
+    identity_a_token: str = ""
+    identity_b_cookie: str = ""
+    identity_b_token: str = ""
+    identity_a_tenant_marker: str = ""
+    identity_b_tenant_marker: str = ""
+
     # Multi-target
     multi_targets: List[str] = field(default_factory=list)  # additional URLs
 
@@ -166,6 +174,13 @@ class RipperSettings:
     scan_vulns: bool = True       # active vulnerability testing (XSS/SQLi/SSRF/LFI)
     scan_cves: bool = True        # CVE mapping for detected libraries
     scan_scenarios: bool = True   # Real-world bug bounty scenario intelligence
+    scan_bola: bool = False       # Dual-identity differential BOLA/IDOR and BFLA (requires auth credentials)
+    scan_llmapp: bool = False     # AI/LLM prompt injection canary scanner (active module)
+    scan_mcptarget: bool = False  # Model Context Protocol target auditor (requires opt-in)
+    scan_graphql: bool = False    # GraphQL schema & authorization auditor (active module)
+    authorized: bool = False      # Explicit authorization scope for active verification modules
+    enable_dedup: bool = True     # SimHash clustering and submission quality guard
+    feedback_profile: str = ""    # Local feedback profile name (suppression & downranking)
     active_scanners: List[str] = field(default_factory=list)  # explicit scanner whitelist
     wordlist_path: str = ""     # custom wordlist override
 
@@ -225,6 +240,19 @@ class RipperSettings:
             "scan_vulns": self.scan_vulns,
             "scan_cves": self.scan_cves,
             "scan_scenarios": self.scan_scenarios,
+            "scan_bola": self.scan_bola,
+            "scan_llmapp": self.scan_llmapp,
+            "scan_mcptarget": self.scan_mcptarget,
+            "scan_graphql": self.scan_graphql,
+            "authorized": self.authorized,
+            "enable_dedup": self.enable_dedup,
+            "feedback_profile": self.feedback_profile,
+            "identity_a_cookie": self.identity_a_cookie,
+            "identity_a_token": self.identity_a_token,
+            "identity_b_cookie": self.identity_b_cookie,
+            "identity_b_token": self.identity_b_token,
+            "identity_a_tenant_marker": self.identity_a_tenant_marker,
+            "identity_b_tenant_marker": self.identity_b_tenant_marker,
             "active_scanners": self.active_scanners,
             "auth_cookie": self.auth_cookie,
             "auth_token": self.auth_token,
@@ -552,6 +580,22 @@ class ReconReport:
     tool_commands: Dict[str, str] = field(default_factory=dict)  # tool -> manual command
     ai_summary: str = ""                                         # AI-generated threat narrative
     unreachable: bool = False
+
+    @property
+    def scans(self) -> List[ScanResult]:
+        """Convenience alias for scan_results."""
+        return self.scan_results
+
+    @property
+    def technologies(self) -> List[str]:
+        """Extract detected technology stack names from scan results."""
+        techs: List[str] = []
+        for sr in self.scan_results:
+            if sr.scanner_name == "tech":
+                for f in sr.findings:
+                    if f.title:
+                        techs.append(f.title)
+        return list(dict.fromkeys(techs))
 
     @property
     def all_findings(self) -> List[Finding]:

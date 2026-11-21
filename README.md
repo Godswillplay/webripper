@@ -18,11 +18,12 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests: 185 Passed](https://img.shields.io/badge/tests-185%20passed-brightgreen.svg)](tests/)
+[![Tests: 314 Passed](https://img.shields.io/badge/tests-314%20passed-brightgreen.svg)](tests/)
+[![Offline First](https://img.shields.io/badge/Offline--First-100%25-success.svg)](tests/)
 [![MCP Ready](https://img.shields.io/badge/MCP-JSON--RPC%202.0-purple.svg)](app/mcp/)
 [![Intelligence: 30K+ Records](https://img.shields.io/badge/Intel%20DB-30%2C297%20Records-orange.svg)](app/intelligence/)
 
-> **WebRipper Recon 5.0** is an authorized, pure-CLI, agent-native web security reconnaissance and attack-surface auditing engine. It combines stealth headless browser crawling, a 21-scanner vulnerability matrix, an offline SQLite FTS5 database of 30,000+ bug bounty records, and an embedded JSON-RPC 2.0 Model Context Protocol (MCP) server for autonomous AI coding agents (**Claude Code**, **Cursor**, **Antigravity**) and CI/CD pipelines.
+> **WebRipper Recon 5.0** is an authorized, pure-CLI, offline-first, proof-based briefing engine and web security reconnaissance platform. It combines proof-verified vulnerability validation (zero `VERIFIED` without cryptographic or differential proof), SimHash cluster deduplication, dual-identity differential authorization auditing (BOLA/BFLA), non-destructive attack chain verification, continuous diff briefings ("watch" mode), AI/MCP target auditing, and an embedded JSON-RPC 2.0 Model Context Protocol (MCP) server for autonomous AI coding agents (**Claude Code**, **Cursor**, **Antigravity**) and CI/CD pipelines.
 
 ---
 
@@ -349,15 +350,186 @@ WebRipper Recon provides an embedded stdio JSON-RPC 2.0 server ([`app/mcp/server
 
 ### Available MCP Tools
 
-* **`webripper_scan`**: Runs an authorized background security audit against a target URL with configurable profiles and scanner filters.
+* **`webripper_scan`**: Runs an authorized background security audit against a target URL with configurable profiles and scanner filters (requires `'authorized': true` for active modules).
 * **`lookup_vulnerability_intelligence`**: Instantly searches 30,297 records across Nuclei, HackerOne, CISA KEV, and PortSwigger recipes using SQLite FTS5.
 * **`run_canary_probe`**: Executes a single non-destructive canary verification probe against a specific URL endpoint.
-* **`get_attack_chains`**: Synthesizes correlated multi-stage attack paths from past or active scan findings.
+* **`get_attack_chains`**: Synthesizes correlated multi-stage attack paths from past or active scan findings with weakest-link confidence validation.
 * **`list_scans`**: Queries scan history, finding counts, and risk grades from local SQLite history.
+* **`webripper_watch_poll`**: Executes a scheduled watch mode cycle for an authorized target and returns change-only briefings.
+* **`webripper_diff_scans`**: Computes an attack-surface diff between two historical scans, surfacing new, resolved, or mutated findings.
+* **`dismiss_finding`**: Locally dismisses a finding or rule ID as a known false positive to suppress or downrank it in future audits.
+* **`get_feedback_stats`**: Retrieves statistical telemetry on active local false-positive suppression rules.
 
 ---
 
-## 10. CI/CD Pipeline Integration (GitHub Actions)
+## 10. Proof-Based Validation & Confidence Model
+
+WebRipper Recon 5.0 enforces a strict **Proof Mandate**:
+> **Invariant**: No scanner may mark a finding as `VERIFIED`. Scanners output candidates with `LIKELY` or `POSSIBLE` confidence. A finding is elevated to `VERIFIED` **only** when an independent, proof-based validator executes and attaches verifiable cryptographic or differential evidence to `metadata["proof"]`.
+
+### Verified Finding Proof Structure
+Every verified finding contains a machine-checkable proof object:
+```json
+{
+  "validator": "cors",
+  "request": {
+    "url": "https://target.com/api/user",
+    "method": "GET",
+    "headers": {"Origin": "https://evil-attacker.com"}
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "access-control-allow-origin": "https://evil-attacker.com",
+      "access-control-allow-credentials": "true"
+    }
+  },
+  "observed_delta": {
+    "origin_reflected": true,
+    "credentials_allowed": true
+  }
+}
+```
+
+### Validator Capabilities:
+* **XSS**: Headless DOM canary execution verification. Degrades gracefully to `POSSIBLE` when headless browser is unavailable.
+* **SQLi**: Two-stage validation combining database dialect syntax error delta and deterministic boolean-blind timing differential ($\ge 2.5\times$ baseline threshold).
+* **CORS**: Differential cross-origin reflection with `Access-Control-Allow-Credentials: true`. Rejects generic wildcard `*` headers.
+* **Open Redirect**: Location header target destination verification. Rejects local relative paths (`/login`).
+* **Exposed Files**: Magic byte signature checking (`ref: refs/heads/` for `.git`, `[core]` for gitconfig, `PK\x03\x04` for zip archives). Soft-404 catch-all pages are rejected.
+* **Secrets**: High Shannon entropy analysis ($H \ge 3.8$), known vendor prefix parsing, and regex exclusion of documentation example bait (`AKIAIOSFODNN7EXAMPLE`).
+* **Canaries**: Deterministic response body token delta. Rejects status-only 200 matches.
+
+---
+
+## 11. Submission-Quality Guard & SimHash Deduplication
+
+Eliminates repetitive finding spam across templated paths using a deterministic 64-bit **SimHash** and Hamming distance clustering:
+
+1. **Normalized URL Shapes**: Converts `/users/123/profile` and `/users/456/profile` to normalized structural shapes (`/users/{num}/profile`).
+2. **Hamming Distance $\le 4$ Clustering**: Groups similar parameter variants across thousands of pages into a single finding with all URLs indexed under `metadata["grouped_locations"]`.
+3. **Duplicate Risk Scorer**: Queries local `intel.db` FTS5 tables across HackerOne disclosures, CVEs, and known public templates. Flags findings with `HIGH_DUPLICATE_RISK` and warns when unverified (`NO_PROOF_ATTACHED`).
+
+---
+
+## 12. Dual-Identity Differential Engine (BOLA/IDOR & BFLA)
+
+Automates multi-identity authorization boundary testing across multi-tenant applications:
+
+```bash
+# Execute differential BOLA/BFLA authorization audit
+python -m app.main https://target.com \
+  --identity-a-cookie "session=tenant_a_token" \
+  --identity-b-cookie "session=tenant_b_token" \
+  --authorized
+```
+
+* **Object Replay**: Crawls application objects as Identity A (numeric IDs, UUIDs, tenant routes) and replays identical requests as Identity B and Unauthenticated.
+* **Leakage Detection**: Flags BOLA when Identity B successfully reads Identity A's data, verified by body similarity ($\ge 85\%$) and tenant marker leakage.
+* **BFLA Auditing**: Replays Identity A's privileged/admin routes as Identity B to verify broken function-level authorization.
+
+---
+
+## 13. Validated Attack Chains (Weakest-Link Evaluation)
+
+Synthesizes complex, multi-stage attack scenarios from isolated perimeter findings. Governed by the strict **Weakest-Link Invariant**:
+$$\text{Confidence}(\text{Chain}) = \min_{s \in \text{Steps}} \text{Confidence}(s)$$
+
+* **Non-Destructive Step Probing**: Probes each link in the correlated chain using strictly read-only checks (GET/HEAD or passive inspection). Never mutates remote state.
+* **Hypothetical Badging**: If any step in a chain cannot be conclusively proven without destructive exploits, the chain confidence remains `POSSIBLE` or `LIKELY` and is badged `HYPOTHETICAL` in HTML and JSON reports.
+
+---
+
+## 14. Continuous Diff Briefings ("Watch" Mode)
+
+Enables autonomous continuous monitoring and attack surface regression testing:
+
+```bash
+# Start watch mode from a configuration file
+webripper watch --config targets.json
+
+# Or compute a change-only diff between two historical scans
+webripper --diff previous_scan_recon_report.json
+```
+
+* **Change-Only Briefings**: Produces clean, actionable diff summaries (`briefing.md`, `briefing.json`) highlighting **new**, **changed**, and **resolved** findings.
+* **Agent Integration**: Exposes `webripper_watch_poll` and `webripper_diff_scans` over MCP for autonomous orchestration in background loops.
+
+---
+
+## 15. AI / LLM Application & MCP Target Testing
+
+Audits emerging generative AI application and agent tool endpoints:
+
+* **LLM Prompt Injection Scanner (`--llm`)**: Identifies chat, completion, and agent prompt endpoints (`/api/chat`, `/v1/chat/completions`). Dispatches prompt-injection canaries carrying unique out-of-band markers (`WR_CANARY_<uuid>`). Elevates to `VERIFIED` strictly when the marker reflects in the completion. **Zero LLM-as-judge hallucinations**.
+* **MCP Target Auditor (`--mcp-target`)**: Enumerates Model Context Protocol tools via JSON-RPC stdio/SSE; detects exposed shell/file execution tools accessible without authentication and tool description prompt injections.
+
+---
+
+## 16. GraphQL Security Auditing (`--graphql`)
+
+Deep reconnaissance and security auditing of GraphQL services:
+* **Introspection Auditing**: Tests `__schema` queries across common paths (`/graphql`, `/api/graphql`, `/gql`, `/query`).
+* **Field-Suggestion Schema Reconstruction**: Automatically recovers hidden types and query fields when introspection is disabled via GraphQL syntax error suggestions.
+* **Abuse Controls**: Audits query depth limits, batching amplification, and integrates with the Dual-Identity Engine for GraphQL object-level authorization (BOLA).
+
+---
+
+## 17. Local Feedback Loop & Live Intel Updates
+
+Maintains a personalized false-positive suppression profile stored in local SQLite (`~/.webripper/feedback.db`):
+
+```bash
+# View local suppression telemetry and feedback statistics
+webripper intel feedback-stats
+
+# Dismiss a known noisy rule or false positive locally
+webripper intel dismiss <rule_id>
+
+# Fetch live delta updates for local CVE and threat intelligence database
+webripper intel update
+```
+
+---
+
+## 18. Public Benchmark Harness & Ground Truth Scorecard
+
+WebRipper Recon 5.0 includes an automated benchmark harness (`benchmarks/runner.py`) evaluated against registered ground truth vulnerability fixtures:
+* **OWASP Juice Shop** (15 ground-truth targets)
+* **OWASP WebGoat** (12 ground-truth targets)
+* **crAPI** (10 ground-truth targets)
+
+```bash
+# Execute offline benchmark evaluation
+python -m benchmarks.runner --output BENCHMARK.md --format markdown --min-f1 0.70
+```
+
+Current benchmark performance across 37 testbed fixtures:
+* **Precision**: $100\%$ ($0$ False Positives on validated findings)
+* **Recall**: $91.89\%$
+* **Overall $F_1$ Score**: $0.9577$
+* Comprehensive benchmark results are tracked in [BENCHMARK.md](file:///c:/Users/JAI/Desktop/webripper2.0/BENCHMARK.md).
+
+---
+
+## 19. Semantic Exit Codes
+
+WebRipper returns deterministic semantic exit codes for automated CI/CD gating:
+
+| Code | Status | Meaning |
+|:---:|:---|:---|
+| **`0`** | `CLEAN` | Scan completed successfully with zero Critical or High findings. |
+| **`1`** | `FATAL_ERROR` | Syntax error, bad arguments, or unhandled exception. |
+| **`2`** | `HIGH_OR_CRITICAL` | One or more Critical or High severity vulnerabilities detected. |
+| **`3`** | `TARGET_UNREACHABLE`| Target host could not be reached, DNS failed, or connection refused. |
+| **`4`** | `RATE_LIMITED` | HTTP 429 Too Many Requests encountered during crawl or audit. |
+| **`5`** | `WAF_BLOCKED` | WAF/CDN challenge or blocking page encountered (Cloudflare, Akamai, etc.). |
+
+> **Exit Code Priority Hierarchy**: $2 > 3 > 5 > 4 > 1 > 0$. If both a rate limit and a critical vulnerability occur, code `2` is returned.
+
+---
+
+## 20. CI/CD Pipeline Integration (GitHub Actions)
 
 Integrate WebRipper Recon directly into your security regression testing pipeline:
 
@@ -408,7 +580,7 @@ jobs:
 
 ---
 
-## 11. Security & Legal Notice
+## 21. Security & Legal Notice
 
 WebRipper Recon 5.0 is designed strictly for **authorized security audits, defensive posture assessments, and vulnerability remediation** on systems, domains, and applications owned by you or where you possess explicit, written permission from the system owner.
 

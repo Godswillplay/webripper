@@ -133,6 +133,72 @@ TOOLS: List[Dict[str, Any]] = [
                 }
             }
         }
+    },
+    {
+        "name": "webripper_watch_poll",
+        "description": "Poll continuous monitoring watch mode targets and return change-only delta briefings.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Authorized target URL to monitor"
+                },
+                "authorized": {
+                    "type": "boolean",
+                    "description": "Explicit statement that target is authorized for monitoring"
+                }
+            },
+            "required": ["target"]
+        }
+    },
+    {
+        "name": "webripper_diff_scans",
+        "description": "Compute a change-only differential briefing between two scans.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "baseline_path": {
+                    "type": "string",
+                    "description": "Path to baseline scan JSON report"
+                },
+                "current_path": {
+                    "type": "string",
+                    "description": "Path to current scan JSON report"
+                }
+            },
+            "required": ["baseline_path", "current_path"]
+        }
+    },
+    {
+        "name": "dismiss_finding",
+        "description": "Dismiss a false-positive finding or rule pattern for local profile tuning.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "rule_id": {
+                    "type": "string",
+                    "description": "Rule identifier or title pattern to dismiss"
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Optional target URL scope (empty for global)"
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "Reason for false-positive dismissal"
+                }
+            },
+            "required": ["rule_id"]
+        }
+    },
+    {
+        "name": "get_feedback_stats",
+        "description": "Retrieve statistics on local false-positive dismissals and profile tuning.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -148,12 +214,21 @@ def _handle_scan(args: Dict[str, Any]) -> str:
     profile = args.get("profile", "quick").strip().lower()
     scanners_arg = args.get("scanners", "")
     delay = float(args.get("delay", 0.0))
+    authorized = bool(args.get("authorized", False) or args.get("explicit_authorization", False))
 
     if not url:
         return "Error: 'url' parameter is required."
 
     depth = 1 if profile == "quick" else (3 if profile == "aggressive" else 2)
     active_scanners = [s.strip() for s in scanners_arg.split(",") if s.strip()] if scanners_arg else []
+
+    active_requested = any(s in active_scanners for s in ("vulns", "bola", "mcptarget", "graphql", "llmapp")) or profile in ("standard", "aggressive")
+    if active_requested and not authorized:
+        return (
+            "Refused: Active verification modules (vulns, bola, mcptarget, graphql, llmapp) "
+            "require explicit authorization on the target. Pass 'authorized': true in tool arguments "
+            "if this target is within your authorized scope."
+        )
 
     settings = RipperSettings(
         url=url,
@@ -350,6 +425,53 @@ def _handle_list_scans(args: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _handle_watch_poll(args: Dict[str, Any]) -> str:
+    from ..watch.engine import WatchEngine, WatchConfig, TargetConfig
+    target = args.get("target", "").strip()
+    authorized = bool(args.get("authorized", False))
+    if not target:
+        return "Error: 'target' is required."
+    if not authorized:
+        return "Error: Explicit authorization required ('authorized': true) to monitor this target."
+    cfg = WatchConfig(targets=[TargetConfig(url=target, authorized=True)], schedule_interval="1h")
+    engine = WatchEngine(cfg)
+    report = engine.run_cycle_for_target(TargetConfig(url=target, authorized=True))
+    if not report:
+        return f"Watch poll cycle executed for {target}. No drift detected."
+    return f"Watch cycle completed for {target}. New findings: {len(report.diff.new_findings)}, Resolved: {len(report.diff.resolved_findings)}."
+
+
+def _handle_diff_scans(args: Dict[str, Any]) -> str:
+    from ..watch.diff import HistoricalDiffEngine
+    b_path = args.get("baseline_path", "").strip()
+    c_path = args.get("current_path", "").strip()
+    if not os.path.exists(b_path) or not os.path.exists(c_path):
+        return "Error: Baseline or current scan path not found."
+    with open(b_path, "r", encoding="utf-8") as f:
+        b_data = json.load(f)
+    with open(c_path, "r", encoding="utf-8") as f:
+        c_data = json.load(f)
+    diff = HistoricalDiffEngine().diff_scans(b_data, c_data)
+    return diff.to_markdown()
+
+
+def _handle_dismiss_finding(args: Dict[str, Any]) -> str:
+    from ..intelligence.feedback import dismiss_finding
+    rule_id = args.get("rule_id", "").strip()
+    target = args.get("target", "").strip()
+    rationale = args.get("rationale", "Dismissed via MCP")
+    if not rule_id:
+        return "Error: 'rule_id' is required."
+    dismiss_finding(pattern_type="rule_id", target=target, rule_id=rule_id, rationale=rationale)
+    return f"Rule '{rule_id}' has been dismissed in local profile feedback."
+
+
+def _handle_get_feedback_stats(args: Dict[str, Any]) -> str:
+    from ..intelligence.feedback import get_feedback_stats
+    stats = get_feedback_stats()
+    return json.dumps(stats, indent=2)
+
+
 # ---------------------------------------------------------------------------
 # JSON-RPC 2.0 Dispatcher
 # ---------------------------------------------------------------------------
@@ -470,6 +592,14 @@ def process_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 content_text = _handle_get_attack_chains(args)
             elif tool_name == "list_scans":
                 content_text = _handle_list_scans(args)
+            elif tool_name == "webripper_watch_poll":
+                content_text = _handle_watch_poll(args)
+            elif tool_name == "webripper_diff_scans":
+                content_text = _handle_diff_scans(args)
+            elif tool_name == "dismiss_finding":
+                content_text = _handle_dismiss_finding(args)
+            elif tool_name == "get_feedback_stats":
+                content_text = _handle_get_feedback_stats(args)
             else:
                 return {
                     "jsonrpc": "2.0",

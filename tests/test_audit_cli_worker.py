@@ -79,6 +79,10 @@ def test_ripper_worker_multi_target_merging_no_attribute_error():
         scan_vulns=False,
         scan_cves=False,
         scan_scenarios=False,
+        scan_bola=False,
+        scan_graphql=False,
+        scan_llmapp=False,
+        scan_mcptarget=False,
         use_external_tools=False,
     )
     worker = RipperWorker(settings)

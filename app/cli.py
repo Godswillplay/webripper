@@ -75,6 +75,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-tools", action="store_true", help="Skip external tool orchestration (nmap, nuclei, etc.)")
     p.add_argument("--cookie", help="Cookie header value for authenticated scans")
     p.add_argument("--token", help="Bearer authorization token")
+    p.add_argument("--identity-a-cookie", default="", help="Identity A cookie for dual-identity BOLA testing")
+    p.add_argument("--identity-a-token", default="", help="Identity A bearer token for dual-identity BOLA testing")
+    p.add_argument("--identity-b-cookie", default="", help="Identity B cookie for dual-identity BOLA testing")
+    p.add_argument("--identity-b-token", default="", help="Identity B bearer token for dual-identity BOLA testing")
+    p.add_argument("--graphql", action="store_true", help="Enable GraphQL schema and authorization auditor")
+    p.add_argument("--llm", "--llmapp", dest="llmapp", action="store_true", help="Enable AI/LLM prompt injection canary scanner")
+    p.add_argument("--mcp-target", dest="mcptarget", action="store_true", help="Enable MCP target auditor")
+    p.add_argument("--authorized", action="store_true", help="Explicit target authorization scope for active modules")
+    p.add_argument("--no-dedup", action="store_true", help="Disable SimHash clustering deduplication")
+    p.add_argument("--watch", action="store_true", help="Start continuous monitoring watch mode")
+    p.add_argument("--watch-config", default="", help="Path to watch mode targets config file")
+    p.add_argument("--intel-update", action="store_true", help="Fetch intel updates and update local intel DB")
+    p.add_argument("--feedback-stats", action="store_true", help="Display local false-positive feedback statistics")
+    p.add_argument("--dismiss", default="", help="Dismiss a rule ID or finding pattern locally")
+    p.add_argument("--dismiss-target", default="", help="Target scope for dismissal (optional)")
     p.add_argument("--header", action="append", help="Custom request header (Format: 'Key: Value')")
     p.add_argument("--open", action="store_true", help="Automatically open generated HTML report in browser")
     p.add_argument("--intel-query", help="Query local vulnerability intelligence SQLite database and exit")
@@ -276,6 +291,61 @@ def run_cli(args: Optional[List[str]] = None) -> int:
     if getattr(opts, "mcp", False):
         from .mcp.server import run_mcp_server
         return run_mcp_server()
+
+    # 0.1 Subcommand dispatch (watch, intel update, intel feedback-stats, intel dismiss)
+    raw_args = list(args) if args is not None else list(sys.argv[1:])
+    if raw_args and raw_args[0] == "watch":
+        from .watch.engine import run_watch_cli
+        return run_watch_cli(raw_args[1:])
+
+    if raw_args and raw_args[0] == "intel":
+        subcmd = raw_args[1] if len(raw_args) > 1 else ""
+        if subcmd == "update":
+            from .intelligence.updater import run_intel_update
+            res = run_intel_update()
+            print(_green(f"[*] Intel DB updated successfully (Version {res.get('version', '')})."))
+            return 0
+        elif subcmd == "feedback-stats":
+            from .intelligence.feedback import get_feedback_stats
+            stats = get_feedback_stats()
+            print(_cyan(f"\n[*] Local False-Positive Feedback Statistics:"))
+            print(f"    Total rules dismissed: {stats.get('total_dismissals', 0)}")
+            print(f"    Target scopes: {len(stats.get('by_target', {}))}")
+            return 0
+        elif subcmd == "dismiss":
+            rule_id = raw_args[2] if len(raw_args) > 2 else ""
+            if not rule_id:
+                print(_red("Error: rule_id required: webripper intel dismiss <rule_id>"), file=sys.stderr)
+                return 1
+            from .intelligence.feedback import dismiss_finding
+            dismiss_finding(pattern_type="rule_id", target="", rule_id=rule_id, rationale="Manual operator dismissal")
+            print(_green(f"[*] Rule '{rule_id}' dismissed locally."))
+            return 0
+
+    if getattr(opts, "watch", False):
+        from .watch.engine import run_watch_cli
+        watch_args = ["--config", opts.watch_config] if getattr(opts, "watch_config", "") else []
+        return run_watch_cli(watch_args)
+
+    if getattr(opts, "intel_update", False):
+        from .intelligence.updater import run_intel_update
+        res = run_intel_update()
+        print(_green(f"[*] Intel DB updated successfully (Version {res.get('version', '')})."))
+        return 0
+
+    if getattr(opts, "feedback_stats", False):
+        from .intelligence.feedback import get_feedback_stats
+        stats = get_feedback_stats()
+        print(_cyan(f"\n[*] Local False-Positive Feedback Statistics:"))
+        print(f"    Total rules dismissed: {stats.get('total_dismissals', 0)}")
+        print(f"    Target scopes: {len(stats.get('by_target', {}))}")
+        return 0
+
+    if getattr(opts, "dismiss", ""):
+        from .intelligence.feedback import dismiss_finding
+        dismiss_finding(pattern_type="rule_id", target=getattr(opts, "dismiss_target", ""), rule_id=opts.dismiss, rationale="Operator CLI dismissal")
+        print(_green(f"[*] Rule '{opts.dismiss}' dismissed locally."))
+        return 0
 
     # 1. Wizard mode requested
     if opts.wizard:
@@ -576,6 +646,16 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
         active_scanners=active_scanners_list,
         auth_cookie=opts.cookie or "",
         auth_token=opts.token or "",
+        identity_a_cookie=getattr(opts, "identity_a_cookie", "") or opts.cookie or "",
+        identity_a_token=getattr(opts, "identity_a_token", "") or opts.token or "",
+        identity_b_cookie=getattr(opts, "identity_b_cookie", "") or "",
+        identity_b_token=getattr(opts, "identity_b_token", "") or "",
+        scan_bola=bool(getattr(opts, "identity_a_cookie", "") or getattr(opts, "identity_a_token", "") or getattr(opts, "identity_b_cookie", "") or getattr(opts, "identity_b_token", "")),
+        scan_graphql=bool(getattr(opts, "graphql", False)),
+        scan_llmapp=bool(getattr(opts, "llmapp", False)),
+        scan_mcptarget=bool(getattr(opts, "mcptarget", False)),
+        authorized=bool(getattr(opts, "authorized", False)),
+        enable_dedup=not getattr(opts, "no_dedup", False),
         custom_headers=_parse_headers(opts.header),
     )
 
@@ -767,10 +847,19 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
                         break
 
         if not opts.quiet:
+            verified_findings = [f for f in all_findings if getattr(f, "confidence", "") == "VERIFIED"]
             print(f"\n{_bold('Scan Complete')} ({elapsed:.1f}s)")
             print(f"  {_red(f'CRITICAL: {crit}')}  {_red(f'HIGH: {high}')}  "
                   f"{_yellow(f'MEDIUM: {med}')}  LOW: {low}  INFO: {info}")
-            print(f"  Total: {len(all_findings)} findings")
+            ver_note = f" ({len(verified_findings)} verified with machine proof)" if verified_findings else ""
+            print(f"  Total: {len(all_findings)} findings{_green(ver_note)}")
+            if verified_findings:
+                print(f"  {_green(f'Verified Vulnerabilities ({len(verified_findings)}):')}")
+                for vf in verified_findings:
+                    vf_sev = getattr(vf.severity, "value", str(vf.severity))
+                    sev_col = _red if vf_sev in ("CRITICAL", "HIGH") else _yellow
+                    v_name = (vf.metadata or {}).get("proof", {}).get("validator", "proof-layer")
+                    print(f"    ✓ {sev_col(f'[{vf_sev}]')} {vf.title} {_dim(f'[{v_name}: proof attached]')}")
             if attack_chains:
                 print(f"  {_red(f'Attack Chains ({len(attack_chains)}):')}")
                 for ch in attack_chains:
@@ -810,25 +899,42 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
                 elif isinstance(ch, dict):
                     chains_export.append(ch)
 
+            exported_findings = []
+            for f in all_findings:
+                meta_clean = {}
+                for k, v in (f.metadata or {}).items():
+                    if k == "proof":
+                        continue
+                    if isinstance(v, (str, int, float, bool, dict, list)):
+                        meta_clean[k] = v
+
+                item = {
+                    "severity": f.severity.value,
+                    "category": f.category,
+                    "title": f.title,
+                    "description": f.description,
+                    "evidence": f.evidence[:500] if f.evidence else "",
+                    "confidence": getattr(f, "confidence", "POSSIBLE"),
+                    "metadata": meta_clean,
+                }
+                # Preserve proof artifact for verified findings
+                if f.metadata and "proof" in f.metadata:
+                    item["proof"] = f.metadata["proof"]
+                    item["proof_attached"] = True
+                    meta_clean["proof"] = f.metadata["proof"]
+                    meta_clean["proof_attached"] = True
+
+                exported_findings.append(item)
+
             data = {
                 "target": url,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "elapsed_seconds": round(elapsed, 1),
                 "risk_score": risk_score_val,
                 "finding_count": len(all_findings),
+                "verified_count": sum(1 for f in all_findings if getattr(f, "confidence", "") == "VERIFIED"),
                 "attack_chains": chains_export,
-                "findings": [
-                    {
-                        "severity": f.severity.value,
-                        "category": f.category,
-                        "title": f.title,
-                        "description": f.description,
-                        "evidence": f.evidence[:500] if f.evidence else "",
-                        "confidence": getattr(f, "confidence", "POSSIBLE"),
-                        "metadata": {k: v for k, v in (f.metadata or {}).items() if isinstance(v, (str, int, float, bool))},
-                    }
-                    for f in all_findings
-                ],
+                "findings": exported_findings,
             }
             with open(out_json, "w", encoding="utf-8") as f:
                 json_mod.dump(data, f, indent=2)

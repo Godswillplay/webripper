@@ -1,0 +1,36 @@
+# WebRipper Recon 5.0 — Cursor AI Rules & Instructions
+
+You are working on **WebRipper Recon 5.0**, an authorized, pure-CLI, agent-native security reconnaissance and posture assessment engine built in Python 3.11+.
+
+## Architecture & Core Directives
+1. **Pure CLI / Headless Engine**:
+   - The desktop GUI (PySide6 / Qt) has been completely retired.
+   - NEVER add Qt, PySide, or GUI dependencies.
+   - Everything runs headless, scriptable, and container-friendly.
+2. **Defensive Posture & Ethical Standards**:
+   - WebRipper Recon is strictly for authorized security assessments, CI/CD vulnerability scanning, and DevSecOps pipelines.
+   - Maintain professional, defensive security terminology in all code comments, docstrings, findings descriptions, and documentation to prevent false-positive safety triggers.
+3. **Python 3.11+ Compatibility**:
+   - Avoid backslashes within f-string curly braces (`{...}`) as they cause SyntaxErrors in Python 3.11.
+   - Use standard type hints from `typing` (`Optional`, `List`, `Dict`, `Tuple`, `Any`).
+4. **Offline Scenario Intelligence (Scanner #21)**:
+   - Uses an embedded SQLite FTS5 database (`app/intelligence/intel.db`) containing >30,000 records (Nuclei templates, HackerOne bug bounty reports, CISA KEV, PortSwigger techniques).
+   - Scanners execute non-destructive, focused canary probes (15-20 max) matching detected technology stacks.
+5. **Native MCP Server**:
+   - Embedded stdio JSON-RPC 2.0 server (`app/mcp/server.py`) powered by `python -m app.mcp`.
+   - Cursor can call tools: `webripper_scan`, `lookup_vulnerability_intelligence`, `run_canary_probe`, `get_attack_chains`, `list_scans`.
+
+## Key Commands
+- **Run Tests**: `python -m pytest tests/ -v`
+- **Run Scan**: `python -m app.main https://target.local -o report.html --json report.json`
+- **Run Wizard**: `python -m app.main --wizard`
+- **Stream Telemetry**: `python -m app.main https://target.local --json-stream`
+- **Diff Against Baseline**: `python -m app.main https://target.local --diff baseline_report.json`
+- **Run MCP Server**: `python -m app.mcp`
+
+## Semantic Exit Codes
+- `0`: Clean execution, zero CRITICAL/HIGH findings.
+- `1`: Operational error / unhandled exception.
+- `2`: Security issues detected (CRITICAL or HIGH severity findings).
+- `3`: Gateway or Web Application Firewall block detected.
+- `4`: Target rate limiting (HTTP 429) detected.

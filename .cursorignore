@@ -1,0 +1,30 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*.so
+
+# Build & Executable artifacts
+build/
+dist/
+
+# Test caches & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Output directories & scan reports
+webripper_output/
+recon_report*.html
+recon_report*.json
+recon_diff*.json
+report.html
+report.json
+
+# OS files
+.DS_Store
+Thumbs.db

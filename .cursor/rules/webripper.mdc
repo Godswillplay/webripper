@@ -1,0 +1,11 @@
+---
+description: WebRipper Recon 5.0 Development and Security Guidelines
+globs: **/*.py
+---
+# WebRipper Recon 5.0 Guidelines
+
+- Python 3.11+ async engine with zero desktop GUI dependencies.
+- Defensive, non-destructive verification standards (OWASP WSTG, CWE, CVSS 3.1).
+- Test execution: `python -m pytest tests/ -v`.
+- All tests must pass with zero regressions.
+- For scan history, use `list_scans(limit=...)` and `search_history(keyword=..., domain=..., limit=...)`.

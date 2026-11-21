@@ -246,8 +246,8 @@ def save_scan(findings: list, target_url: str, scan_results: Optional[list] = No
     return path
 
 
-def list_scans(domain: Optional[str] = None) -> List[ScanRecord]:
-    """List saved scans, optionally filtered by domain."""
+def list_scans(domain: Optional[str] = None, limit: Optional[int] = None) -> List[ScanRecord]:
+    """List saved scans, optionally filtered by domain and limited by count."""
     records: List[ScanRecord] = []
     conn = None
 
@@ -255,19 +255,20 @@ def list_scans(domain: Optional[str] = None) -> List[ScanRecord]:
     try:
         conn = _init_db()
         cur = conn.cursor()
+        query = """
+            SELECT json_path, domain, timestamp, finding_count, critical_count, high_count, medium_count
+            FROM scans
+        """
+        params: List[Any] = []
         if domain:
-            cur.execute("""
-                SELECT json_path, domain, timestamp, finding_count, critical_count, high_count, medium_count
-                FROM scans
-                WHERE domain LIKE ?
-                ORDER BY timestamp DESC
-            """, (f"%{domain}%",))
-        else:
-            cur.execute("""
-                SELECT json_path, domain, timestamp, finding_count, critical_count, high_count, medium_count
-                FROM scans
-                ORDER BY timestamp DESC
-            """)
+            query += " WHERE domain LIKE ?"
+            params.append(f"%{domain}%")
+        query += " ORDER BY timestamp DESC"
+        if limit is not None and limit > 0:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
 
         if rows:
@@ -296,6 +297,8 @@ def list_scans(domain: Optional[str] = None) -> List[ScanRecord]:
     for fname in sorted(os.listdir(history_dir), reverse=True):
         if not fname.endswith(".json"):
             continue
+        if limit is not None and limit > 0 and len(records) >= limit:
+            break
         fpath = os.path.join(history_dir, fname)
         try:
             with open(fpath, "r", encoding="utf-8") as fh:

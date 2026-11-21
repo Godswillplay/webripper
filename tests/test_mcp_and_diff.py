@@ -421,6 +421,23 @@ def test_mcp_server_resources_read_intelligence_stats():
     assert "total_scenarios" in parsed or "scenarios" in parsed or "version" in parsed
 
 
+def test_mcp_server_resources_read_history_recent():
+    server = WebRipperMCPServer()
+    req = {
+        "jsonrpc": "2.0",
+        "id": 14,
+        "method": "resources/read",
+        "params": {"uri": "recon://history/recent"},
+    }
+    resp = server.handle_request(req)
+    assert resp["id"] == 14
+    contents = resp["result"]["contents"]
+    assert len(contents) > 0
+    assert contents[0]["uri"] == "recon://history/recent"
+    parsed = json.loads(contents[0]["text"])
+    assert isinstance(parsed, list)
+
+
 def test_mcp_server_resources_read_unknown_uri():
     server = WebRipperMCPServer()
     req = {

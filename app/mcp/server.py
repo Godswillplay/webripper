@@ -306,7 +306,7 @@ def _handle_get_attack_chains(args: Dict[str, Any]) -> str:
 def _handle_list_scans(args: Dict[str, Any]) -> str:
     from ..history import list_scans
     limit = int(args.get("limit", 10))
-    scans = list_scans()
+    scans = list_scans(limit=limit)
     if not scans:
         return "No scan history records found in local database."
 

@@ -84,3 +84,19 @@ def test_history_diff(monkeypatch):
         assert diff.fixed_count == 1
         assert diff.unchanged_count == 1
         assert "New: 1 | Fixed: 1 | Unchanged: 1" in diff.summary
+
+
+def test_history_list_scans_with_limit(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr(history, "_get_history_dir", lambda: tmpdir)
+
+        findings = [Finding(severity=Severity.INFO, category="test", title="T1", description="D1")]
+        history.save_scan(findings, "https://app1.com")
+        history.save_scan(findings, "https://app2.com")
+        history.save_scan(findings, "https://app3.com")
+
+        all_scans = history.list_scans()
+        assert len(all_scans) == 3
+
+        limited_scans = history.list_scans(limit=2)
+        assert len(limited_scans) == 2

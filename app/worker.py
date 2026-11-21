@@ -179,6 +179,13 @@ class RipperWorker(threading.Thread):
                         recon.rip_report.total_failed += rip_report.total_failed
                         recon.rip_report.total_size += rip_report.total_size
 
+                if rip_report and rip_report.pages_crawled == 0 and rip_report.total_downloaded == 0 and (rip_report.errors or rip_report.total_failed > 0):
+                    self._on_progress(ProgressEvent(
+                        event_type=EventType.LOG,
+                        message=f"Target {target_url} was unreachable — aborting scanner pipeline.",
+                    ))
+                    continue
+
                 # Phase 2: Run scanners for this target with target_settings
                 self._run_scanners(recon, rip_report, target_settings)
                 # Restore the worker thread's event loop in case an async scanner replaced/closed it
@@ -342,6 +349,15 @@ class RipperWorker(threading.Thread):
         profile = cfg.profile
         active_set = {s.strip().lower() for s in getattr(cfg, "active_scanners", []) if s.strip()}
 
+        parsed_target = urlparse(cfg.url)
+        target_host = (parsed_target.hostname or "").lower()
+        is_ip_or_local = (
+            target_host in ("localhost", "127.0.0.1", "::1", "0.0.0.0")
+            or target_host.endswith(".local")
+            or target_host.endswith(".internal")
+            or (target_host.replace(".", "").isdigit() and len(target_host.split(".")) == 4)
+        )
+
         # Original scanners (always run)
         if cfg.scan_secrets:
             try:
@@ -414,7 +430,7 @@ class RipperWorker(threading.Thread):
             except ImportError:
                 pass
 
-        if cfg.scan_subdomains and (profile != "quick" or "subdomains" in active_set):
+        if cfg.scan_subdomains and not is_ip_or_local and (profile != "quick" or "subdomains" in active_set):
             try:
                 from .scanners.subdomains import SubdomainScanner
                 scanners.append(SubdomainScanner(rip_report, cfg, self._on_progress))
@@ -436,7 +452,7 @@ class RipperWorker(threading.Thread):
             except ImportError:
                 pass
 
-        if cfg.scan_dns and (profile != "quick" or "dns" in active_set):
+        if cfg.scan_dns and not is_ip_or_local and (profile != "quick" or "dns" in active_set):
             try:
                 from .scanners.dns import DNSScanner
                 scanners.append(DNSScanner(rip_report, cfg, self._on_progress))
@@ -457,7 +473,7 @@ class RipperWorker(threading.Thread):
             except ImportError:
                 pass
 
-        if cfg.scan_github_dork and (profile == "aggressive" or "github_dork" in active_set):
+        if cfg.scan_github_dork and not is_ip_or_local and (profile == "aggressive" or "github_dork" in active_set):
             try:
                 from .scanners.github_dork import GitHubDorkScanner
                 scanners.append(GitHubDorkScanner(rip_report, cfg, self._on_progress))

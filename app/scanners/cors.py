@@ -195,14 +195,19 @@ class CORSScanner(BaseScanner):
 
                 # Check wildcard once per URL
                 if acao == "*" and origin == "https://evil-attacker.com":
+                    sev = Severity.HIGH if acac.lower() == "true" else Severity.MEDIUM
+                    title_suffix = " with credentials enabled" if acac.lower() == "true" else ""
                     self._add_finding(Finding(
-                        severity=Severity.MEDIUM,
+                        severity=sev,
                         category="cors",
-                        title=f"CORS wildcard (*) allows any origin: {urlparse(url).path or '/'}",
-                        description="Access-Control-Allow-Origin is set to *, allowing any website to read responses.",
+                        title=f"CORS wildcard (*){title_suffix} allows any origin: {urlparse(url).path or '/'}",
+                        description=(
+                            "Access-Control-Allow-Origin is set to *, allowing any website to read responses."
+                            + (" Also enables Access-Control-Allow-Credentials, which is an invalid spec combination indicating severe CORS misconfiguration." if acac.lower() == "true" else "")
+                        ),
                         evidence=f"ACAO: * (credentials: {acac})",
                         url=url,
-                        remediation="Restrict CORS to specific trusted origins instead of using wildcard.",
+                        remediation="Restrict CORS to specific trusted origins instead of using wildcard. Never combine wildcard ACAO with Allow-Credentials.",
                         metadata={
                             "exploit": (
                                 "Any website can make requests and read responses. If the endpoint returns "

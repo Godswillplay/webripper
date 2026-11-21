@@ -73,7 +73,7 @@ TECH_DB: List[Dict] = [
     {"name": "Ruby on Rails", "category": "Framework", "headers": [r"x-powered-by.*phusion|x-runtime"], "html": [r"csrf-token", r"authenticity_token"], "js_files": [], "cookies": ["_rails_", "_session_id"]},
 
     # --- Analytics ---
-    {"name": "Google Analytics", "category": "Analytics", "headers": [], "html": [r"google-analytics\.com", r"googletagmanager\.com", r"gtag\(", r"UA-[0-9]+-[0-9]+", r"G-[A-Z0-9]+"], "js_files": [], "cookies": ["_ga", "_gid"]},
+    {"name": "Google Analytics", "category": "Analytics", "headers": [], "html": [r"google-analytics\.com", r"googletagmanager\.com", r"gtag\(", r"\bUA-[0-9]+-[0-9]+\b", r"\bG-[A-Z0-9]{4,}\b"], "js_files": [], "cookies": ["_ga", "_gid"]},
     {"name": "Google Tag Manager", "category": "Analytics", "headers": [], "html": [r"googletagmanager\.com/gtm", r"GTM-[A-Z0-9]+"], "js_files": [], "cookies": []},
     {"name": "Hotjar", "category": "Analytics", "headers": [], "html": [r"hotjar\.com", r"hjid"], "js_files": [r"hotjar"], "cookies": ["_hj"]},
     {"name": "Segment", "category": "Analytics", "headers": [], "html": [r"segment\.com/analytics", r"analytics\.js"], "js_files": [r"segment"], "cookies": ["ajs_"]},

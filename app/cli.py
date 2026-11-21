@@ -14,7 +14,7 @@ import os
 import sys
 import time
 import webbrowser
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from .models import RipperSettings, EventType, Finding
@@ -512,7 +512,12 @@ def _handle_diff(
 def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) -> int:
     """Scan a single target. Returns semantic exit code."""
     # Ensure scheme
-    if not url.startswith(("http://", "https://")):
+    if "://" in url:
+        scheme = url.split("://", 1)[0].lower()
+        if scheme not in ("http", "https"):
+            print(_red(f"Error: Invalid URL scheme '{scheme}'. Only http:// and https:// are supported."), file=sys.stderr)
+            return 1
+    elif not url.startswith(("http://", "https://")):
         url = "https://" + url
 
     parsed_url = urlparse(url)
@@ -534,8 +539,12 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
     # Resolve asset output directory with isolation for multi-target execution
     if opts.out_dir:
         base_asset_dir = opts.out_dir
+    elif opts.json_output:
+        base_asset_dir = os.path.dirname(os.path.abspath(opts.json_output))
     elif opts.output and not opts.output.lower().endswith((".html", ".htm", ".json")):
         base_asset_dir = opts.output
+    elif opts.output:
+        base_asset_dir = os.path.dirname(os.path.abspath(opts.output))
     else:
         base_asset_dir = os.path.join(os.getcwd(), "webripper_output")
 
@@ -685,14 +694,29 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
             print(_red("Scan produced no report"), file=sys.stderr)
             return 1
 
+        # Check for unreachable target
+        if report.rip_report and report.rip_report.pages_crawled == 0 and report.rip_report.total_downloaded == 0:
+            has_failure = bool(report.rip_report.errors or report.rip_report.total_failed > 0 or getattr(report.rip_report, "unreachable", False))
+            if has_failure:
+                print(_red(f"\nTarget unreachable: Could not connect to {url}"), file=sys.stderr)
+                emit_stream({
+                    "event": "target_unreachable",
+                    "target": url,
+                    "error": "Connection failed / Target unreachable",
+                    "timestamp": time.time(),
+                })
+                return 3
+
         # Gather findings
         all_findings = []
         for sr in report.scan_results:
             all_findings.extend(sr.findings)
 
+        attack_chains = getattr(report, "attack_chains", []) or []
+
         # Save to history
         try:
-            history.save_scan(all_findings, url)
+            history.save_scan(all_findings, url, attack_chains=attack_chains)
         except Exception:
             pass
 
@@ -713,6 +737,7 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
             "medium": med,
             "low": low,
             "info": info,
+            "attack_chains": len(attack_chains),
             "timestamp": time.time(),
         })
 
@@ -745,6 +770,13 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
             print(f"  {_red(f'CRITICAL: {crit}')}  {_red(f'HIGH: {high}')}  "
                   f"{_yellow(f'MEDIUM: {med}')}  LOW: {low}  INFO: {info}")
             print(f"  Total: {len(all_findings)} findings")
+            if attack_chains:
+                print(f"  {_red(f'Attack Chains ({len(attack_chains)}):')}")
+                for ch in attack_chains:
+                    ch_sev = getattr(ch.severity, "value", str(ch.severity))
+                    color_fn = _red if ch_sev in ("CRITICAL", "HIGH") else _yellow
+                    step_count = len(getattr(ch, "steps", []))
+                    print(f"    ➜ {color_fn(f'[{ch_sev}]')} {ch.name} ({step_count} steps)")
 
         # Generate HTML report
         if out_html:
@@ -766,11 +798,24 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
         if out_json:
             import json as json_mod
             os.makedirs(os.path.dirname(os.path.abspath(out_json)), exist_ok=True)
+            risk_score_val = getattr(report, "risk_score", "N/A")
+            if not isinstance(risk_score_val, (str, int, float, bool)):
+                risk_score_val = str(risk_score_val)
+
+            chains_export = []
+            for ch in attack_chains:
+                if hasattr(ch, "to_dict"):
+                    chains_export.append(ch.to_dict())
+                elif isinstance(ch, dict):
+                    chains_export.append(ch)
+
             data = {
                 "target": url,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "elapsed_seconds": round(elapsed, 1),
+                "risk_score": risk_score_val,
                 "finding_count": len(all_findings),
+                "attack_chains": chains_export,
                 "findings": [
                     {
                         "severity": f.severity.value,
@@ -778,6 +823,7 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
                         "title": f.title,
                         "description": f.description,
                         "evidence": f.evidence[:500] if f.evidence else "",
+                        "confidence": getattr(f, "confidence", "POSSIBLE"),
                         "metadata": {k: v for k, v in (f.metadata or {}).items() if isinstance(v, (str, int, float, bool))},
                     }
                     for f in all_findings

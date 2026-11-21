@@ -284,7 +284,7 @@ def _handle_run_canary(args: Dict[str, Any]) -> str:
 
 
 def _handle_get_attack_chains(args: Dict[str, Any]) -> str:
-    from ..history import list_scans, search_history
+    from ..history import list_scans
     domain = args.get("domain", "").strip()
     if not domain:
         return "Error: 'domain' is required."
@@ -294,12 +294,43 @@ def _handle_get_attack_chains(args: Dict[str, Any]) -> str:
         return f"No previous reconnaissance scan history found for domain '{domain}'."
 
     out = [f"=== Attack Chains for Domain: {domain} ==="]
+    chains_found = 0
     for sc in scans[:5]:
-        out.append(f"\nScan for {sc.domain} at {sc.timestamp} (Findings: {sc.finding_count})")
-        findings = search_history(domain=domain, limit=50)
-        out.append(f"Recorded Findings: {len(findings)} issues")
-        for f in findings[:5]:
-            out.append(f"  ● [{f.get('severity', 'INFO')}] {f.get('title', '')} ({f.get('category', '')})")
+        chains = []
+        if sc.path and os.path.exists(sc.path):
+            try:
+                with open(sc.path, "r", encoding="utf-8") as f:
+                    hist_data = json.load(f)
+                    chains = hist_data.get("attack_chains", [])
+            except Exception:
+                pass
+
+        if chains:
+            chains_found += len(chains)
+            out.append(f"\nScan for {sc.domain} at {sc.timestamp} ({len(chains)} Attack Chains):")
+            for c in chains:
+                c_name = c.get("name", "Unnamed Chain")
+                c_sev = c.get("severity", "HIGH")
+                c_impact = c.get("impact", "")
+                c_steps = c.get("steps", [])
+                c_rem = c.get("remediation", "")
+                out.append(f"  ● [{c_sev}] {c_name} ({len(c_steps)} steps)")
+                if c_impact:
+                    out.append(f"    Impact: {c_impact}")
+                for s in c_steps:
+                    s_desc = s.get("description", "")
+                    s_cmd = s.get("command", "")
+                    out.append(f"    ➜ Step: {s_desc}")
+                    if s_cmd:
+                        out.append(f"      PoC: {s_cmd}")
+                if c_rem:
+                    out.append(f"    Remediation: {c_rem}")
+        else:
+            out.append(f"\nScan for {sc.domain} at {sc.timestamp}: No attack chains formed (Findings: {sc.finding_count}).")
+
+    if chains_found == 0:
+        out.append(f"\nNo attack chains were formed in the recorded scans for domain '{domain}'.")
+
     return "\n".join(out)
 
 

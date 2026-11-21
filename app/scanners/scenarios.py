@@ -111,11 +111,17 @@ class ScenarioScanner(BaseScanner):
                     is_match = False
                     search_corpus = f"{body}\n" + "\n".join(f"{k}: {v}" for k, v in resp_headers.items())
 
-                    if sc.match_regex:
+                    # Code guard: Wildcard/empty/missing/invalid match_regex must NEVER confirm a finding
+                    if not sc.match_regex or sc.match_regex.strip() in ("", ".*", "^.*$", "^.*"):
+                        self._log(f"Scenario {sc.id} has empty/wildcard match_regex; skipping to avoid false positive.")
+                        continue
+
+                    try:
                         if re.search(sc.match_regex, search_corpus, re.IGNORECASE):
                             is_match = True
-                    else:
-                        is_match = True
+                    except re.error as re_err:
+                        self._log(f"Scenario {sc.id} regex error: {re_err}; skipping.")
+                        continue
 
                     # Negative filter check
                     if is_match and sc.negative_regex:
@@ -144,6 +150,7 @@ class ScenarioScanner(BaseScanner):
 
                         self._add_finding(Finding(
                             severity=sev,
+                            confidence="LIKELY",
                             category=sc.category,
                             title=f"Scenario: {sc.title}",
                             description=(
@@ -175,12 +182,14 @@ class ScenarioScanner(BaseScanner):
 
         # 4. Cross-reference detected technologies with CISA Known Exploited Vulnerabilities (KEV)
         kev_count = 0
-        for tech in list(detected_techs)[:5]:
+        for tech in sorted(detected_techs)[:5]:
             kevs = engine.search_cisa_kev(tech, limit=2)
             for kev in kevs:
                 kev_count += 1
+                matched_comp = kev.get("matched_component") or f"{kev['vendor']} {kev['product']}"
                 self._add_finding(Finding(
-                    severity=Severity.HIGH,
+                    severity=Severity.HIGH if kev.get("match_type") != "description" else Severity.INFO,
+                    confidence="LIKELY",
                     category="cves",
                     title=f"CISA KEV Active Exploit: {kev['cve_id']} ({kev['vendor']} {kev['product']})",
                     description=(
@@ -189,13 +198,14 @@ class ScenarioScanner(BaseScanner):
                         f"{kev['short_description']}\n\n"
                         f"Required Action: {kev['required_action']}"
                     ),
-                    evidence=f"Component match: {tech} -> {kev['vendor']} {kev['product']} ({kev['cve_id']})",
+                    evidence=f"Component match: {tech} -> {matched_comp} ({kev['cve_id']})",
                     remediation=kev['required_action'],
                     metadata={
                         "cve": kev['cve_id'],
                         "cwes": kev['cwes'],
                         "cisa_kev": True,
                         "date_added": kev['date_added'],
+                        "matched_component": matched_comp,
                     },
                 ))
 

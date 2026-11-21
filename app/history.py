@@ -158,8 +158,13 @@ def _finding_key(f: Any) -> str:
     return f"{cat}|{title}|{url}|{ev}"
 
 
-def save_scan(findings: list, target_url: str, scan_results: Optional[list] = None) -> str:
-    """Save scan findings to history (both JSON and SQLite). Returns the saved JSON file path."""
+def save_scan(
+    findings: list,
+    target_url: str,
+    scan_results: Optional[list] = None,
+    attack_chains: Optional[list] = None,
+) -> str:
+    """Save scan findings and attack chains to history (both JSON and SQLite). Returns the saved JSON file path."""
     domain = urlparse(target_url).hostname or "unknown"
     ts_file = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     filename = f"{domain}_{ts_file}.json"
@@ -170,6 +175,14 @@ def save_scan(findings: list, target_url: str, scan_results: Optional[list] = No
     high_count = sum(1 for f in findings if getattr(f.severity, "value", str(f.severity)).upper() == "HIGH")
     med_count = sum(1 for f in findings if getattr(f.severity, "value", str(f.severity)).upper() == "MEDIUM")
 
+    chains_data = []
+    if attack_chains:
+        for c in attack_chains:
+            if hasattr(c, "to_dict"):
+                chains_data.append(c.to_dict())
+            elif isinstance(c, dict):
+                chains_data.append(c)
+
     data: Dict[str, Any] = {
         "target_url": target_url,
         "domain": domain,
@@ -178,6 +191,7 @@ def save_scan(findings: list, target_url: str, scan_results: Optional[list] = No
         "critical_count": crit_count,
         "high_count": high_count,
         "medium_count": med_count,
+        "attack_chains": chains_data,
         "findings": [],
     }
 

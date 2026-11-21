@@ -241,29 +241,45 @@ def test_mcp_server_get_attack_chains_with_history():
         },
     }
 
-    mock_record = ScanRecord(
-        path="dummy.json",
-        domain="target.local",
-        timestamp="2026-11-21T00:00:00",
-        finding_count=2,
-        critical_count=1,
-        high_count=1,
-        medium_count=0,
-    )
-    mock_findings = [
-        {"severity": "CRITICAL", "title": "SQL Injection in /api/users", "category": "vulns"},
-        {"severity": "HIGH", "title": "Missing HSTS Header", "category": "headers"},
-    ]
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as tf:
+        json.dump({
+            "target_url": "https://target.local",
+            "domain": "target.local",
+            "timestamp": "2026-11-21T00:00:00",
+            "attack_chains": [
+                {
+                    "name": "SQL Injection to Database Compromise",
+                    "severity": "CRITICAL",
+                    "impact": "Full database read/write access",
+                    "remediation": "Use parameterized queries",
+                    "steps": [{"description": "Exploit SQLi in /api/users", "source": "vulns"}],
+                }
+            ],
+            "findings": [],
+        }, tf)
+        tmp_path = tf.name
 
-    with patch("app.history.list_scans", return_value=[mock_record]):
-        with patch("app.history.search_history", return_value=mock_findings) as mock_search:
+    try:
+        mock_record = ScanRecord(
+            path=tmp_path,
+            domain="target.local",
+            timestamp="2026-11-21T00:00:00",
+            finding_count=1,
+            critical_count=1,
+            high_count=0,
+            medium_count=0,
+        )
+        with patch("app.history.list_scans", return_value=[mock_record]):
             resp = server.handle_request(req)
-            mock_search.assert_called_once_with(domain="target.local", limit=50)
 
-    assert resp["id"] == 41
-    text = resp["result"]["content"][0]["text"]
-    assert "Attack Chains for Domain: target.local" in text
-    assert "SQL Injection in /api/users" in text
+        assert resp["id"] == 41
+        text = resp["result"]["content"][0]["text"]
+        assert "Attack Chains for Domain: target.local" in text
+        assert "SQL Injection to Database Compromise" in text
+        assert "Full database read/write access" in text
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def test_mcp_server_unknown_method():

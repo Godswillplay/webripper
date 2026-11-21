@@ -768,24 +768,6 @@ CORE_SCENARIOS: List[ScenarioRecipe] = [
         author_insight="Web server returned HTML application page for non-existent static resource .css, allowing public CDN caching of dynamic authenticated user pages.",
         remediation="Configure reverse proxies to cache static files based on Content-Type response header rather than URL extension.",
     ),
-    ScenarioRecipe(
-        id="H1-HRS-001",
-        title="HTTP Request Smuggling CL.TE Dual Header Desync Canary",
-        tech_stack=["nginx", "apache", "haproxy", "aws", "cloudflare"],
-        category="vulns",
-        cwe="CWE-444",
-        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
-        probe_method="POST",
-        probe_path="/",
-        probe_headers={"Content-Length": "4", "Transfer-Encoding": "chunked"},
-        probe_body="0\r\n\r\n",
-        match_status=[200, 400],
-        match_regex=r'.*',
-        negative_regex=r'',
-        bounty_reference="PortSwigger Research / HackerOne #490219 ($10,000 Payout)",
-        author_insight="Front-end and back-end proxies disagreed on message delimitation, enabling connection pool poisoning and session hijacking.",
-        remediation="Enforce HTTP/2 end-to-end; configure reverse proxies to reject requests containing both Content-Length and Transfer-Encoding.",
-    ),
 ]
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -511,27 +512,68 @@ class ScenarioEngine:
         finally:
             conn.close()
 
-    def search_cisa_kev(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Search CISA Known Exploited Vulnerabilities catalog."""
+    def search_cisa_kev(self, query: str, limit: int = 10, include_description: bool = False) -> List[Dict[str, Any]]:
+        """Search CISA Known Exploited Vulnerabilities catalog.
+
+        For component/technology matching, matches against vendor and product using
+        word-boundary/token semantics. Only searches short_description if include_description=True.
+        """
         conn = self._get_connection()
         cur = conn.cursor()
         try:
-            cur.execute("""
-                SELECT cve_id, vendor, product, vuln_name, short_description, required_action, notes, cwes, date_added
-                FROM cisa_kev
-                WHERE cve_id LIKE ? OR vendor LIKE ? OR product LIKE ? OR vuln_name LIKE ? OR short_description LIKE ?
-                ORDER BY date_added DESC
-                LIMIT ?
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", limit))
+            clean_query = query.strip()
+            if not clean_query:
+                return []
+
+            if include_description:
+                cur.execute("""
+                    SELECT cve_id, vendor, product, vuln_name, short_description, required_action, notes, cwes, date_added
+                    FROM cisa_kev
+                    WHERE cve_id LIKE ? OR vendor LIKE ? OR product LIKE ? OR vuln_name LIKE ? OR short_description LIKE ?
+                    ORDER BY date_added DESC, cve_id DESC
+                    LIMIT ?
+                """, (f"%{clean_query}%", f"%{clean_query}%", f"%{clean_query}%", f"%{clean_query}%", f"%{clean_query}%", limit * 4))
+            else:
+                cur.execute("""
+                    SELECT cve_id, vendor, product, vuln_name, short_description, required_action, notes, cwes, date_added
+                    FROM cisa_kev
+                    WHERE cve_id LIKE ? OR vendor LIKE ? OR product LIKE ?
+                    ORDER BY date_added DESC, cve_id DESC
+                    LIMIT ?
+                """, (f"%{clean_query}%", f"%{clean_query}%", f"%{clean_query}%", limit * 4))
+
             rows = cur.fetchall()
-            return [
-                {
-                    "cve_id": r[0], "vendor": r[1], "product": r[2], "vuln_name": r[3],
-                    "short_description": r[4], "required_action": r[5], "notes": r[6],
-                    "cwes": r[7], "date_added": r[8]
-                }
-                for r in rows
-            ]
+            token_pattern = re.compile(rf"\b{re.escape(clean_query)}\b", re.IGNORECASE)
+
+            results = []
+            for r in rows:
+                cve_id, vendor, product, vuln_name, desc, req_act, notes, cwes, date_added = r
+                matched_comp = None
+                match_type = "component"
+
+                if token_pattern.search(product):
+                    matched_comp = product
+                elif token_pattern.search(vendor):
+                    matched_comp = vendor
+                elif token_pattern.search(cve_id) or clean_query.lower() in cve_id.lower():
+                    matched_comp = cve_id
+                    match_type = "cve"
+                elif include_description and (token_pattern.search(desc) or token_pattern.search(vuln_name)):
+                    matched_comp = f"{vendor} {product}"
+                    match_type = "description"
+                else:
+                    continue
+
+                results.append({
+                    "cve_id": cve_id, "vendor": vendor, "product": product, "vuln_name": vuln_name,
+                    "short_description": desc, "required_action": req_act, "notes": notes,
+                    "cwes": cwes, "date_added": date_added, "matched_component": matched_comp,
+                    "match_type": match_type,
+                })
+                if len(results) >= limit:
+                    break
+
+            return results
         except Exception:
             return []
         finally:

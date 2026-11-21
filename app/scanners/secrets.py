@@ -170,6 +170,20 @@ _EMAIL_FP_DOMAINS = {"example.com", "example.org", "test.com", "localhost", "pla
 # Helpers
 # ---------------------------------------------------------------------------
 
+_EXAMPLE_CREDENTIAL_PATTERNS = [
+    re.compile(r"^AKIAIOSFODNN7EXAMPLE$", re.IGNORECASE),
+    re.compile(r"^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJzdWIiOiIxMjM0NTY3ODkw"),
+]
+
+
+def _is_example_credential(evidence: str) -> bool:
+    """Check if matched secret is a known documentation or sample credential."""
+    for pat in _EXAMPLE_CREDENTIAL_PATTERNS:
+        if pat.search(evidence):
+            return True
+    return False
+
+
 def _is_binary(filepath: str) -> bool:
     """Check if a file appears to be binary."""
     try:
@@ -261,7 +275,11 @@ class SecretScanner(BaseScanner):
             if not os.path.isfile(f.local_path):
                 continue
             lower = f.local_path.lower()
-            if not any(lower.endswith(ext) for ext in _TEXT_EXTENSIONS):
+            ct = getattr(f, "content_type", "").lower()
+            is_text_ext = any(lower.endswith(ext) for ext in _TEXT_EXTENSIONS)
+            is_text_ct = any(t in ct for t in ("text/", "html", "javascript", "json", "xml"))
+            has_no_ext = "." not in os.path.basename(f.local_path)
+            if not (is_text_ext or is_text_ct or has_no_ext):
                 continue
             try:
                 size = os.path.getsize(f.local_path)
@@ -290,6 +308,23 @@ class SecretScanner(BaseScanner):
         for pattern_name, regex, severity, remediation in PATTERNS:
             for match in regex.finditer(line):
                 evidence = match.group(0).strip()
+
+                # Check if this is a known documentation / example key
+                if _is_example_credential(evidence):
+                    self._add_finding(Finding(
+                        severity=Severity.INFO,
+                        category="secrets",
+                        title=f"Example / Documentation Credential: {pattern_name}",
+                        description=f"Public example or documentation credential pattern detected: {pattern_name}. This is recognized as non-functional documentation sample data.",
+                        evidence=evidence,
+                        file_path=filepath,
+                        line_number=line_num,
+                        url=url,
+                        remediation="Verify this is documentation sample code and not an active production key.",
+                        confidence="INFO",
+                        metadata={"example_credential": True},
+                    ))
+                    continue
 
                 # Apply false-positive filtering for password patterns
                 if pattern_name == "Hardcoded Password":

@@ -1,0 +1,33 @@
+# Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Pytest & Testing Caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PyInstaller Builds
+build/
+dist/
+
+# WebRipper Dynamic Output & Reports
+webripper_output/
+recon_report*.html
+recon_report*.json
+recon_diff*.json
+report.html
+report.json
+
+# OS & Temp
+.DS_Store
+Thumbs.db
+desktop.ini

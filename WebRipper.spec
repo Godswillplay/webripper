@@ -1,0 +1,107 @@
+# -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = []
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('playwright')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+# Include the app icon and offline intelligence database
+datas += [
+    ('app/icon.ico', 'app'),
+    ('app/intelligence/intel.db', 'app/intelligence'),
+]
+
+a = Analysis(
+    ['app/main.py'],
+    pathex=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports + [
+        'app',
+        'app.worker',
+        'app.ripper',
+        'app.dependencies',
+        'app.models',
+        'app.cli',
+        'app.report',
+        'app.correlator',
+        'app.intelligence',
+        'app.intelligence.models',
+        'app.intelligence.catalog',
+        'app.intelligence.engine',
+        'app.scanners',
+        'app.scanners.base',
+        'app.scanners.scenarios',
+        'app.scanners.secrets',
+        'app.scanners.headers',
+        'app.scanners.tech',
+        'app.scanners.endpoints',
+        'app.scanners.paths',
+        'app.scanners.cors',
+        'app.scanners.javascript',
+        'app.scanners.forms',
+        'app.scanners.tls',
+        'app.scanners.cookies',
+        'app.scanners.subdomains',
+        'app.scanners.portscan',
+        'app.scanners.waf',
+        'app.scanners.dns',
+        'app.scanners.emails',
+        'app.scanners.screenshots',
+        'app.scanners.github_dork',
+        'app.scanners.cves',
+        'app.scanners.vulns',
+        'app.tools',
+        'app.tools.base',
+        'app.tools.detector',
+        'app.tools.runner',
+        'app.tools.installer',
+        'app.tools.burp',
+        'app.ai',
+        'app.ai.agent',
+        'app.ai.client',
+        'app.ai.setup',
+        'app.ai.tools',
+        'app.mcp',
+        'app.mcp.server',
+        'app.mcp.__main__',
+        'app.stealth',
+        'brotli',
+        '_brotli',
+        'app.cvss',
+        'app.history',
+        'app.wordlists',
+        'app.wordlists.paths',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=['PySide6', 'shiboken6', 'tkinter', 'matplotlib'],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='WebRipperRecon',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='app/icon.ico',
+)

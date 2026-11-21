@@ -1,0 +1,281 @@
+[
+  {
+    "id": "PS-HRS-001",
+    "title": "HTTP Request Smuggling: CL.TE Dual Header Desync",
+    "category": "request_smuggling",
+    "cwe": "CWE-444",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+    "attack_vector": "Front-end uses Content-Length header, back-end uses Transfer-Encoding: chunked. Trailing request bytes poison backend connection pool.",
+    "detection_probe": "POST / HTTP/1.1\\r\\nHost: {target}\\r\\nContent-Length: 6\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n0\\r\\n\\r\\nG",
+    "impact": "Unauthenticated cache poisoning, credential theft via request hijacking, complete authentication bypass.",
+    "author_reference": "PortSwigger Research: HTTP Desync Attacks (James Kettle, DEF CON 27)",
+    "remediation": "Disable connection reuse on backend, normalize HTTP requests at reverse proxy, enforce HTTP/2 end-to-end.",
+    "tech_stack": [
+      "nginx",
+      "apache",
+      "haproxy",
+      "aws",
+      "cloudflare",
+      "varnish"
+    ]
+  },
+  {
+    "id": "PS-HRS-002",
+    "title": "HTTP Request Smuggling: TE.CL Desync via Obfuscated Transfer-Encoding",
+    "category": "request_smuggling",
+    "cwe": "CWE-444",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+    "attack_vector": "Front-end uses Transfer-Encoding, back-end uses Content-Length. Obfuscated TE header (e.g., Transfer-Encoding: xchunked or double TE) causes back-end to fall back to Content-Length.",
+    "detection_probe": "POST / HTTP/1.1\\r\\nHost: {target}\\r\\nContent-Length: 4\\r\\nTransfer-Encoding: chunked\\r\\nTransfer-Encoding: cow\\r\\n\\r\\n5c\\r\\nGPOST / HTTP/1.1\\r\\n...\\r\\n0\\r\\n\\r\\n",
+    "impact": "Session hijacking, redirect hijacking, internal admin endpoint access.",
+    "author_reference": "PortSwigger Research: HTTP Request Smuggling (James Kettle)",
+    "remediation": "Reject ambiguous requests containing both Content-Length and Transfer-Encoding headers (RFC 7230 \u00a73.3.3).",
+    "tech_stack": [
+      "apache",
+      "nginx",
+      "tomcat",
+      "iis",
+      "akamai"
+    ]
+  },
+  {
+    "id": "PS-HRS-003",
+    "title": "HTTP/2 Request Smuggling: H2.TE Request Splitting (Downgrade Flaw)",
+    "category": "request_smuggling",
+    "cwe": "CWE-444",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+    "attack_vector": "Front-end speaks HTTP/2 to client but downgrades to HTTP/1.1 to upstream backend. Attacker injects Transfer-Encoding in pseudo-headers or binary framing.",
+    "detection_probe": "H2 request with header 'transfer-encoding: chunked' and message body desynchronizing HTTP/1.1 backend.",
+    "impact": "Account takeover via stolen ambient session tokens, request queuing delay attacks.",
+    "author_reference": "PortSwigger Research: HTTP/2: The Sequel is Always Worse (James Kettle, Black Hat 2021)",
+    "remediation": "Enforce HTTP/2 end-to-end to back-end services; strip pseudo-headers and sanitize headers during protocol translation.",
+    "tech_stack": [
+      "nginx",
+      "haproxy",
+      "envoy",
+      "cloudflare",
+      "aws_alb"
+    ]
+  },
+  {
+    "id": "PS-WCP-001",
+    "title": "Web Cache Poisoning via Unkeyed Host & Header Reflection",
+    "category": "cache_poisoning",
+    "cwe": "CWE-444",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+    "attack_vector": "Reverse proxy cache hashes URL path but excludes headers (X-Forwarded-Host, X-Host, X-Forwarded-Scheme). Application reflects unkeyed header into script src imports.",
+    "detection_probe": "GET / HTTP/1.1\\r\\nHost: {target}\\r\\nX-Forwarded-Host: evil-cdn.example.com",
+    "impact": "Stored cross-site scripting served to every subsequent visitor of the cached resource.",
+    "author_reference": "PortSwigger Research: Practical Web Cache Poisoning (James Kettle, Black Hat 2018)",
+    "remediation": "Include all request headers that alter response content in the cache key, or disable unkeyed header handling.",
+    "tech_stack": [
+      "varnish",
+      "cloudflare",
+      "fastly",
+      "akamai",
+      "nginx",
+      "django",
+      "drupal"
+    ]
+  },
+  {
+    "id": "PS-WCP-002",
+    "title": "Web Cache Poisoning: Fat GET Request Parameter Cloaking",
+    "category": "cache_poisoning",
+    "cwe": "CWE-444",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+    "attack_vector": "Front-end cache ignores request body for GET requests, but back-end web framework (e.g. Ruby on Rails, Node.js) parses query parameters from both URL and body, prioritizing body.",
+    "detection_probe": "GET /js/loader.js?cb=123 HTTP/1.1\\r\\nHost: {target}\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\nContent-Length: 17\\r\\n\\r\\ncb=alert(1)//",
+    "impact": "Arbitrary JavaScript execution delivered from legitimate CDN edge node.",
+    "author_reference": "PortSwigger Research: Web Cache Entanglement (James Kettle, Black Hat 2020)",
+    "remediation": "Configure reverse proxy caches to reject GET requests with non-empty message bodies (Content-Length > 0).",
+    "tech_stack": [
+      "rails",
+      "node",
+      "express",
+      "ruby",
+      "varnish",
+      "cloudflare"
+    ]
+  },
+  {
+    "id": "PS-WCD-001",
+    "title": "Web Cache Deception via Path Delimiter Confusion",
+    "category": "cache_deception",
+    "cwe": "CWE-200",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N",
+    "attack_vector": "Web server strips trailing non-existent path extension (e.g. /account/settings/test.css) and returns authenticated HTML, while caching proxy caches based on .css static extension.",
+    "detection_probe": "GET /account/profile/nonexistent.css HTTP/1.1\\r\\nHost: {target}\\r\\nCookie: session={test_session}",
+    "impact": "Sensitive user profile, API keys, CSRF tokens, and PII cached on public CDN and readable by unauthenticated attackers.",
+    "author_reference": "PortSwigger Research: Web Cache Deception (Omer Gil / James Kettle)",
+    "remediation": "Set Cache-Control: no-store, private on dynamic endpoints; configure cache to only cache static responses based on Content-Type header.",
+    "tech_stack": [
+      "cloudflare",
+      "akamai",
+      "iis",
+      "apache",
+      "spring",
+      "django"
+    ]
+  },
+  {
+    "id": "PS-PP-001",
+    "title": "Client-Side Prototype Pollution via Query & Hash Parameters",
+    "category": "prototype_pollution",
+    "cwe": "CWE-1321",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+    "attack_vector": "Client-side JavaScript recursive object merge / deep clone copies user-controlled URL properties into Object.prototype, altering global property lookups.",
+    "detection_probe": "URL append: ?__proto__[polluted]=true or ?constructor[prototype][polluted]=true",
+    "impact": "DOM XSS via gadget chains in popular frontend libraries (lodash, jQuery, Google Analytics, sanitize-html).",
+    "author_reference": "PortSwigger Research: Client-side prototype pollution (Gareth Heyes, Black Hat 2021)",
+    "remediation": "Use Object.create(null) for dictionaries, freeze Object.prototype with Object.freeze(), or sanitize object keys.",
+    "tech_stack": [
+      "react",
+      "vue",
+      "angular",
+      "node",
+      "javascript",
+      "nextjs"
+    ]
+  },
+  {
+    "id": "PS-PP-002",
+    "title": "Server-Side Prototype Pollution: Remote Code Execution in Node.js",
+    "category": "prototype_pollution",
+    "cwe": "CWE-1321",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "attack_vector": "Backend JSON deserialization and deep-merge mutates global Object.prototype in Node.js runtime, polluting child_process.execFile options (e.g., shell, env, NODE_OPTIONS).",
+    "detection_probe": "POST /api/settings HTTP/1.1\\r\\nContent-Type: application/json\\r\\n\\r\\n{\"__proto__\": {\"status\": 510, \"NODE_OPTIONS\": \"--inspect=0.0.0.0\"}}",
+    "impact": "Full Remote Code Execution on Node.js application servers.",
+    "author_reference": "PortSwigger Research: Server-side prototype pollution (Mikhail Shcherbakov, Gareth Heyes)",
+    "remediation": "Validate JSON schemas strictly; prohibit '__proto__' and 'constructor' keys in JSON parsers; run node with --disable-proto=delete.",
+    "tech_stack": [
+      "node",
+      "express",
+      "fastify",
+      "nest",
+      "javascript"
+    ]
+  },
+  {
+    "id": "PS-OAUTH-001",
+    "title": "OAuth 2.0 Account Hijacking via redirect_uri Path Traversal",
+    "category": "oauth",
+    "cwe": "CWE-601",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+    "attack_vector": "Authorization server validates redirect_uri domain with prefix/regex matching. Attacker uses path traversal or open redirect parameter on whitelist domain to leak authorization codes.",
+    "detection_probe": "GET /oauth/authorize?client_id={id}&redirect_uri=https://target.com/callback/../../open-redirect?url=https://attacker.com",
+    "impact": "Complete account takeover without user password.",
+    "author_reference": "PortSwigger Web Security Academy: OAuth 2.0 Authentication Vulnerabilities",
+    "remediation": "Require strict exact string match for redirect_uri against pre-registered client callbacks.",
+    "tech_stack": [
+      "oauth",
+      "auth0",
+      "okta",
+      "cognito",
+      "keycloak"
+    ]
+  },
+  {
+    "id": "PS-JWT-001",
+    "title": "JWT Signature Bypass via Algorithm Confusion (RS256 to HS256)",
+    "category": "jwt",
+    "cwe": "CWE-347",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+    "attack_vector": "Server expects RS256 token signed with private RSA key. Attacker changes token header to 'alg': 'HS256' and signs token using server's public RSA key (which is public knowledge).",
+    "detection_probe": "JWT header: {\"alg\":\"HS256\",\"typ\":\"JWT\"} signed with RSA public key as HMAC secret.",
+    "impact": "Arbitrary user impersonation including administrative privilege escalation.",
+    "author_reference": "PortSwigger Web Security Academy: JWT Attacks",
+    "remediation": "Explicitly enforce expected signing algorithm on the server; never trust header 'alg' parameter blindly.",
+    "tech_stack": [
+      "jwt",
+      "node",
+      "python",
+      "spring",
+      "golang",
+      "ruby"
+    ]
+  },
+  {
+    "id": "PS-SSTI-001",
+    "title": "Server-Side Template Injection (SSTI) in Modern Web Engines",
+    "category": "ssti",
+    "cwe": "CWE-1336",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "attack_vector": "Unsanitized user input is concatenated directly into template source string instead of being passed as context parameter, executing template expressions.",
+    "detection_probe": "Diagnostic polyglot: ${{7*7}}[[${7*7}]]#{7*7}<%= 7*7 %>{{7*7}}",
+    "impact": "Remote code execution, file disclosure, environment credential theft across Jinja2, Twig, Freemarker, Thymeleaf, SpEL.",
+    "author_reference": "PortSwigger Research: Server-Side Template Injection (James Kettle, Black Hat 2015)",
+    "remediation": "Never concatenate user input directly into template strings; use parameterized template context.",
+    "tech_stack": [
+      "python",
+      "django",
+      "flask",
+      "java",
+      "spring",
+      "php",
+      "ruby",
+      "nodejs"
+    ]
+  },
+  {
+    "id": "PS-GQL-001",
+    "title": "GraphQL Mutation Batching & Introspection Information Leak",
+    "category": "graphql",
+    "cwe": "CWE-284",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+    "attack_vector": "Production GraphQL schema enables __schema introspection and permits batch array requests in single POST, bypassing rate limiting and discovering unauthenticated mutations.",
+    "detection_probe": "POST /graphql with body: [{\"query\":\"query{__schema{types{name}}}\"}]",
+    "impact": "Full API schema exposure, credential brute-forcing via batched queries, privilege escalation.",
+    "author_reference": "PortSwigger Web Security Academy: GraphQL Vulnerabilities",
+    "remediation": "Disable introspection in production; implement query depth and complexity limits; enforce per-operation rate limits.",
+    "tech_stack": [
+      "graphql",
+      "apollo",
+      "node",
+      "python",
+      "ruby",
+      "hasura"
+    ]
+  },
+  {
+    "id": "PS-SSRF-001",
+    "title": "SSRF Cloud Metadata Exfiltration (AWS / GCP / Azure)",
+    "category": "ssrf",
+    "cwe": "CWE-918",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+    "attack_vector": "Server fetches external URL provided by user (webhooks, avatar imports, PDF generators) without IP sanitization, reaching link-local instance metadata service.",
+    "detection_probe": "http://169.254.169.254/latest/meta-data/iam/security-credentials/ or http://metadata.google.internal/computeMetadata/v1/",
+    "impact": "Temporary AWS IAM role keys, GCP service account tokens, full cloud infrastructure compromise.",
+    "author_reference": "PortSwigger Web Security Academy: Server-Side Request Forgery",
+    "remediation": "Enforce IMDSv2 (token-based session headers); filter non-routable IPv4/IPv6 private ranges in application firewall.",
+    "tech_stack": [
+      "aws",
+      "gcp",
+      "azure",
+      "docker",
+      "kubernetes",
+      "cloud"
+    ]
+  },
+  {
+    "id": "PS-RACE-001",
+    "title": "Single-Packet Race Condition: Multi-Endpoint Limit Overrun",
+    "category": "race_conditions",
+    "cwe": "CWE-362",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:H/A:N",
+    "attack_vector": "Synchronized HTTP/2 single-packet requests exploit time-of-check to time-of-use (TOCTOU) windows in checkout, voucher redemption, or funds transfer.",
+    "detection_probe": "Concurrent requests aligned using HTTP/2 multiplexing or TCP packet buffering to arrive within sub-millisecond window.",
+    "impact": "Gift card double-spending, coupon reuse, vote manipulation, balance duplication.",
+    "author_reference": "PortSwigger Research: Smashing the state machine: the true potential of web race conditions (James Kettle, Black Hat 2023)",
+    "remediation": "Use database row-level locking (SELECT ... FOR UPDATE) or atomic transactions with idempotency keys.",
+    "tech_stack": [
+      "stripe",
+      "shopify",
+      "django",
+      "laravel",
+      "rails",
+      "node"
+    ]
+  }
+]

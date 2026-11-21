@@ -287,7 +287,7 @@ class MockGraphQLHandler(http.server.BaseHTTPRequestHandler):
 def mock_graphql_server():
     """Start local mock GraphQL HTTP server on 127.0.0.1:0."""
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), MockGraphQLHandler)
-    host, port = server.server_address
+    host, port = server.server_address[0], server.server_address[1]
     base_url = f"http://{host}:{port}"
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -542,7 +542,7 @@ def test_non_graphql_server_not_falsely_detected():
             self.wfile.write(b"Not Found")
 
     plain_server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PlainHandler)
-    host, port = plain_server.server_address
+    host, port = plain_server.server_address[0], plain_server.server_address[1]
     url = f"http://{host}:{port}"
 
     thread = threading.Thread(target=plain_server.serve_forever, daemon=True)

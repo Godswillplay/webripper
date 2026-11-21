@@ -147,7 +147,7 @@ class MockTargetServer(http.server.BaseHTTPRequestHandler):
 def fixture_server() -> Generator[str, None, None]:
     """Start local fixture HTTP server on an ephemeral port."""
     server = http.server.HTTPServer(("127.0.0.1", 0), MockTargetServer)
-    host, port = server.server_address
+    host, port = server.server_address[0], server.server_address[1]
     base_url = f"http://{host}:{port}"
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)

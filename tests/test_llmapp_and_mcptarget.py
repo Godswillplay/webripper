@@ -195,7 +195,7 @@ class MockAIAndMCPServer(http.server.BaseHTTPRequestHandler):
 def fixture_server():
     """Start local mock fixture server on an ephemeral port (127.0.0.1:0)."""
     server = http.server.HTTPServer(("127.0.0.1", 0), MockAIAndMCPServer)
-    host, port = server.server_address
+    host, port = server.server_address[0], server.server_address[1]
     base_url = f"http://{host}:{port}"
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)

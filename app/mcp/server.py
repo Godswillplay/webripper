@@ -469,7 +469,7 @@ def _handle_dismiss_finding(args: Dict[str, Any]) -> str:
 def _handle_get_feedback_stats(args: Dict[str, Any]) -> str:
     from ..intelligence.feedback import get_feedback_stats
     stats = get_feedback_stats()
-    return json.dumps(stats, indent=2)
+    return json.dumps(stats, indent=2, default=str)
 
 
 # ---------------------------------------------------------------------------
@@ -544,7 +544,7 @@ def process_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     "contents": [{
                         "uri": uri,
                         "mimeType": "application/json",
-                        "text": json.dumps(stats, indent=2),
+                        "text": json.dumps(stats, indent=2, default=str),
                     }]
                 }
             }
@@ -558,7 +558,7 @@ def process_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     "contents": [{
                         "uri": uri,
                         "mimeType": "application/json",
-                        "text": json.dumps([s.__dict__ if hasattr(s, "__dict__") else s for s in scans], indent=2),
+                        "text": json.dumps([s.__dict__ if hasattr(s, "__dict__") else s for s in scans], indent=2, default=str),
                     }]
                 }
             }
@@ -665,7 +665,7 @@ def run_mcp_server() -> int:
             request = json.loads(line_clean)
             response = process_request(request)
             if response is not None:
-                resp_json = json.dumps(response, separators=(',', ':'))
+                resp_json = json.dumps(response, separators=(',', ':'), default=str)
                 sys.stdout.write(resp_json + "\n")
                 sys.stdout.flush()
         except json.JSONDecodeError as err:
@@ -674,7 +674,7 @@ def run_mcp_server() -> int:
                 "id": None,
                 "error": {"code": -32700, "message": f"Parse error: {err}"}
             }
-            sys.stdout.write(json.dumps(err_resp) + "\n")
+            sys.stdout.write(json.dumps(err_resp, default=str) + "\n")
             sys.stdout.flush()
         except Exception as general_err:
             logger.error(f"Unexpected MCP server error: {general_err}")

@@ -351,9 +351,9 @@ class ChainVerifier:
             step_results.append(step_res)
 
             # Update step confidence in-place
-            step.confidence = step_res.confidence
+            step.confidence = step_res.confidence.value if hasattr(step_res.confidence, "value") else str(step_res.confidence)
             if step.finding:
-                step.finding.confidence = step_res.confidence
+                step.finding.confidence = step_res.confidence.value if hasattr(step_res.confidence, "value") else str(step_res.confidence)
                 if not hasattr(step.finding, "metadata") or step.finding.metadata is None:
                     step.finding.metadata = {}
                 step.finding.metadata["verification"] = step_res.to_dict()
@@ -376,7 +376,7 @@ class ChainVerifier:
             chain_confidence = _WEIGHT_TO_CONFIDENCE.get(min_weight, Confidence.POSSIBLE)
             is_verified = (chain_confidence == Confidence.VERIFIED)
 
-        chain.confidence = chain_confidence
+        chain.confidence = chain_confidence.value if hasattr(chain_confidence, "value") else str(chain_confidence)
 
         if is_verified:
             chain.metadata["status"] = "VERIFIED"

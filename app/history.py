@@ -13,6 +13,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -207,12 +208,14 @@ def save_scan(
             "evidence": f.evidence[:1000] if f.evidence else "",
             "remediation": f.remediation,
             "url": f_url,
+            "confidence": f.confidence.value if hasattr(f.confidence, "value") else str(getattr(f, "confidence", "POSSIBLE")),
         }
         meta_dict = {}
         if getattr(f, "metadata", None):
             meta_dict = {
-                k: v for k, v in f.metadata.items()
-                if isinstance(v, (str, int, float, bool))
+                k: (v.value if hasattr(v, "value") else v)
+                for k, v in f.metadata.items()
+                if isinstance(v, (str, int, float, bool, Enum))
             }
             f_dict["metadata"] = meta_dict
 
@@ -224,7 +227,7 @@ def save_scan(
             f.description,
             f_dict["evidence"],
             f.remediation,
-            json.dumps(meta_dict) if meta_dict else "",
+            json.dumps(meta_dict, default=str) if meta_dict else "",
             f_url,
         ))
 

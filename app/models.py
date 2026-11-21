@@ -93,7 +93,7 @@ class Severity(Enum):
         return NotImplemented
 
 
-class Confidence(Enum):
+class Confidence(str, Enum):
     """Finding confidence levels — how certain we are this is real."""
     VERIFIED = "VERIFIED"    # Payload sent and response proves the vulnerability
     LIKELY = "LIKELY"        # Strong signal from active probing (e.g., specific error)
@@ -355,7 +355,7 @@ class RipReport:
         }
 
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+        return json.dumps(self.to_dict(), indent=indent, default=str)
 
 
 # ---------------------------------------------------------------------------
@@ -378,11 +378,29 @@ class Finding:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if hasattr(self.confidence, "value"):
+            self.confidence = str(self.confidence.value)
+        elif not isinstance(self.confidence, str):
+            self.confidence = str(self.confidence)
         if isinstance(self.severity, str):
             try:
                 self.severity = Severity[self.severity.upper()]
             except KeyError:
                 self.severity = Severity.INFO
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "confidence":
+            if hasattr(value, "value"):
+                value = str(value.value)
+            elif value is not None and not isinstance(value, str):
+                value = str(value)
+        elif name == "severity":
+            if isinstance(value, str):
+                try:
+                    value = Severity[value.upper()]
+                except KeyError:
+                    value = Severity.INFO
+        super().__setattr__(name, value)
 
     @property
     def exploit_info(self) -> str:
@@ -498,6 +516,21 @@ class AttackChainStep:
     finding: Optional[Finding] = None
     source: str = ""        # which scanner/tool produced this step
     command: str = ""       # exploit command for this step
+    confidence: str = "POSSIBLE"
+
+    def __post_init__(self) -> None:
+        if hasattr(self.confidence, "value"):
+            self.confidence = str(self.confidence.value)
+        elif not isinstance(self.confidence, str):
+            self.confidence = str(self.confidence)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "confidence":
+            if hasattr(value, "value"):
+                value = str(value.value)
+            elif value is not None and not isinstance(value, str):
+                value = str(value)
+        super().__setattr__(name, value)
 
     def to_dict(self) -> dict:
         d = {"description": self.description, "source": self.source}
@@ -505,6 +538,8 @@ class AttackChainStep:
             d["command"] = self.command
         if self.finding:
             d["finding"] = self.finding.to_dict()
+        if hasattr(self, "confidence") and self.confidence:
+            d["confidence"] = self.confidence.value if hasattr(self.confidence, "value") else str(self.confidence)
         return d
 
 
@@ -517,23 +552,48 @@ class AttackChain:
     impact: str = ""            # what the attacker ultimately gains
     time_to_exploit: str = ""   # estimated time
     remediation: str = ""       # how to break the chain
+    confidence: str = "POSSIBLE"
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if hasattr(self.confidence, "value"):
+            self.confidence = str(self.confidence.value)
+        elif not isinstance(self.confidence, str):
+            self.confidence = str(self.confidence)
         if isinstance(self.severity, str):
             try:
                 self.severity = Severity[self.severity.upper()]
             except KeyError:
                 self.severity = Severity.INFO
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "confidence":
+            if hasattr(value, "value"):
+                value = str(value.value)
+            elif value is not None and not isinstance(value, str):
+                value = str(value)
+        elif name == "severity":
+            if isinstance(value, str):
+                try:
+                    value = Severity[value.upper()]
+                except KeyError:
+                    value = Severity.INFO
+        super().__setattr__(name, value)
+
     def to_dict(self) -> dict:
-        return {
+        d = {
             "name": self.name,
-            "severity": self.severity.value,
+            "severity": self.severity.value if hasattr(self.severity, "value") else str(self.severity),
             "steps": [s.to_dict() for s in self.steps],
             "impact": self.impact,
             "time_to_exploit": self.time_to_exploit,
             "remediation": self.remediation,
         }
+        if hasattr(self, "confidence") and self.confidence:
+            d["confidence"] = self.confidence.value if hasattr(self.confidence, "value") else str(self.confidence)
+        if hasattr(self, "metadata") and self.metadata:
+            d["metadata"] = self.metadata
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -629,7 +689,7 @@ class ReconReport:
             return "F"
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "url": self.url,
             "start_time": self.start_time,
             "end_time": self.end_time,
@@ -647,4 +707,16 @@ class ReconReport:
         return d
 
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+        return json.dumps(self.to_dict(), indent=indent, default=str)
+
+
+class WebRipperJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder handling Enum, datetime, dataclasses, and objects with to_dict."""
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, Enum) or hasattr(obj, "value"):
+            return obj.value
+        if hasattr(obj, "to_dict") and callable(obj.to_dict):
+            return obj.to_dict()
+        if hasattr(obj, "isoformat") and callable(obj.isoformat):
+            return obj.isoformat()
+        return str(obj)

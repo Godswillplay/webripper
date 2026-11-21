@@ -556,7 +556,7 @@ def run_watch_cli(argv: Optional[List[str]] = None) -> int:
                 return 1
 
         if args.json_stdout:
-            print(json.dumps([b.to_dict() for b in briefings], indent=2))
+            print(json.dumps([b.to_dict() for b in briefings], indent=2, default=str))
 
         has_critical = any(b.has_critical_or_high_regressions for b in briefings)
         return 2 if has_critical else 0

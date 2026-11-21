@@ -561,7 +561,7 @@ def _handle_diff(
         diff_out_path = os.path.join(asset_dir, "recon_diff.json")
         os.makedirs(asset_dir, exist_ok=True)
         with open(diff_out_path, "w", encoding="utf-8") as df:
-            json_mod.dump(diff_result, df, indent=2)
+            json_mod.dump(diff_result, df, indent=2, default=str)
         if not quiet:
             print(f"  Diff Report: {_green(os.path.abspath(diff_out_path))}")
     except Exception as e:
@@ -679,7 +679,7 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
             if not (getattr(opts, "json_stream", False) or getattr(opts, "stream_file", None)):
                 return
             import json as json_mod
-            line = json_mod.dumps(data)
+            line = json_mod.dumps(data, default=str)
             if getattr(opts, "json_stream", False):
                 sys.stdout.write(line + "\n")
                 sys.stdout.flush()
@@ -914,7 +914,7 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
                     "title": f.title,
                     "description": f.description,
                     "evidence": f.evidence[:500] if f.evidence else "",
-                    "confidence": getattr(f, "confidence", "POSSIBLE"),
+                    "confidence": f.confidence.value if hasattr(f.confidence, "value") else str(getattr(f, "confidence", "POSSIBLE")),
                     "metadata": meta_clean,
                 }
                 # Preserve proof artifact for verified findings
@@ -932,12 +932,15 @@ def _scan_target(url: str, opts, target_index: int = 1, total_targets: int = 1) 
                 "elapsed_seconds": round(elapsed, 1),
                 "risk_score": risk_score_val,
                 "finding_count": len(all_findings),
-                "verified_count": sum(1 for f in all_findings if getattr(f, "confidence", "") == "VERIFIED"),
+                "verified_count": sum(
+                    1 for f in all_findings
+                    if (f.confidence.value if hasattr(f.confidence, "value") else str(getattr(f, "confidence", ""))) == "VERIFIED"
+                ),
                 "attack_chains": chains_export,
                 "findings": exported_findings,
             }
             with open(out_json, "w", encoding="utf-8") as f:
-                json_mod.dump(data, f, indent=2)
+                json_mod.dump(data, f, indent=2, default=str)
             if not opts.quiet:
                 print(f"  JSON:   {_green(os.path.abspath(out_json))}")
 

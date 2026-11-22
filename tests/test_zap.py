@@ -64,6 +64,17 @@ class TestZAPDetection:
         assert found is not None
         assert "zap" in found
 
+    def test_find_zap_binary_detects_portable_jar(self, tmp_path, monkeypatch):
+        mgr = ZAPManager()
+        mgr.tools_dir = tmp_path
+        jar_file = tmp_path / "zap-2.14.0.jar"
+        jar_file.write_text("fake jar", encoding="utf-8")
+        monkeypatch.setattr("app.tools.zap.COMMON_ZAP_PATHS", [])
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        found = mgr.find_zap_binary()
+        assert found == str(jar_file)
+
     def test_detect_zap_not_installed(self, tmp_path, monkeypatch):
         mgr = ZAPManager()
         mgr.tools_dir = tmp_path
@@ -222,6 +233,7 @@ class TestZAPDaemonLifecycleAndBurpChaining:
 
         # Check command arguments
         assert "mock_zap.bat" in captured_cmd
+        assert "-Xmx512m" in captured_cmd
         assert "-daemon" in captured_cmd
         assert "-host" in captured_cmd
         assert "127.0.0.1" in captured_cmd
@@ -241,11 +253,48 @@ class TestZAPDaemonLifecycleAndBurpChaining:
         # Check Java memory options
         assert captured_env.get("JAVA_OPTS") == "-Xmx512m"
         assert captured_env.get("_JAVA_OPTIONS") == "-Xmx512m"
+        assert captured_env.get("jvmopts") == "-Xmx512m"
 
         # Check logged stdout
         out, _ = capsys.readouterr()
         assert "[ZAP] Active Burp Suite proxy detected on 127.0.0.1:8080 — chaining ZAP upstream -> Burp." in out
         assert "[ZAP] Note: WebRipper crawl traffic will appear in your Burp HTTP history." in out
+
+    def test_spawn_daemon_jar_binary_uses_java_invocation(self, monkeypatch):
+        mgr = ZAPManager()
+        probe_calls = [(False, False), (True, True)]
+        monkeypatch.setattr(mgr, "probe_zap", lambda p: probe_calls.pop(0) if probe_calls else (True, True))
+        monkeypatch.setattr(mgr, "_check_and_setup_burp_chaining", lambda: False)
+        monkeypatch.setattr(mgr, "find_zap_binary", lambda: "/tools/zap/zap.jar")
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/java" if name == "java" else None)
+
+        captured_cmd = None
+        captured_env = None
+
+        class MockProcess:
+            def poll(self):
+                return None
+            def wait(self, timeout=None):
+                return 0
+
+        def mock_popen(cmd, env=None, **kwargs):
+            nonlocal captured_cmd, captured_env
+            captured_cmd = cmd
+            captured_env = env
+            return MockProcess()
+
+        monkeypatch.setattr(subprocess, "Popen", mock_popen)
+
+        ok = mgr.start_daemon(port=8090, timeout=5.0)
+        assert ok is True
+        assert captured_cmd[0] == "/usr/bin/java"
+        assert captured_cmd[1] == "-Xmx512m"
+        assert captured_cmd[2] == "-jar"
+        assert captured_cmd[3] == "/tools/zap/zap.jar"
+        assert "-daemon" in captured_cmd
+        assert captured_env.get("JAVA_OPTS") == "-Xmx512m"
+        assert captured_env.get("_JAVA_OPTIONS") == "-Xmx512m"
+        assert captured_env.get("jvmopts") == "-Xmx512m"
 
     def test_stop_daemon_owned(self):
         mgr = ZAPManager()

@@ -628,7 +628,7 @@ def run_zap(
 
 
 def zap_command(target: str) -> str:
-    return f"zaproxy -daemon -port 8090"
+    return "zaproxy -Xmx512m -daemon -port 8090"
 
 
 # =====================================================================

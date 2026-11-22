@@ -118,6 +118,15 @@ class ZAPManager:
             if p4.is_file():
                 return str(p4)
 
+        # 1b. Check for portable zap*.jar in tools directory
+        if self.tools_dir.is_dir():
+            for jar in self.tools_dir.glob("zap*.jar"):
+                return str(jar)
+        tools_root = self.tools_dir.parent
+        if tools_root.is_dir():
+            for jar in tools_root.glob("zap*/*.jar"):
+                return str(jar)
+
         # 2. Check common operating system paths
         for p in COMMON_ZAP_PATHS:
             if os.path.isfile(p):
@@ -338,13 +347,32 @@ class ZAPManager:
         # Check upstream Burp chaining before assembling CLI command
         self._check_and_setup_burp_chaining()
 
-        cmd = [
-            zap_binary,
-            "-daemon",
-            "-host", "127.0.0.1",
-            "-port", str(self.port),
-            "-config", "api.disablekey=true",
-        ]
+        # Assemble command: pass -Xmx512m explicitly on the command line.
+        # On Linux/macOS, zap.sh explicitly parses $@ for -Xmx*, overrides its internal
+        # 1/4 host RAM calculation (QMEM, which allocates ~2GB on an 8GB system), and strips
+        # the flag before launching the underlying Java process.
+        # Passing -Xmx512m as a CLI argument ensures the memory cap sticks.
+        if zap_binary.lower().endswith(".jar"):
+            java_bin = shutil.which("java") or "java"
+            cmd = [
+                java_bin,
+                "-Xmx512m",
+                "-jar",
+                zap_binary,
+                "-daemon",
+                "-host", "127.0.0.1",
+                "-port", str(self.port),
+                "-config", "api.disablekey=true",
+            ]
+        else:
+            cmd = [
+                zap_binary,
+                "-Xmx512m",
+                "-daemon",
+                "-host", "127.0.0.1",
+                "-port", str(self.port),
+                "-config", "api.disablekey=true",
+            ]
 
         if self.burp_chaining:
             cmd.extend([
@@ -359,6 +387,7 @@ class ZAPManager:
         env = os.environ.copy()
         env["JAVA_OPTS"] = "-Xmx512m"
         env["_JAVA_OPTIONS"] = "-Xmx512m"
+        env["jvmopts"] = "-Xmx512m"
 
         creationflags = 0
         if platform.system() == "Windows":

@@ -11,6 +11,7 @@ Provides:
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 import ssl
 import subprocess
@@ -30,12 +31,18 @@ BURP_COMMUNITY_JAR_URL = (
     "https://portswigger.net/burp/releases/download?product=community&version=&type=Jar"
 )
 
-# Standard Windows installation paths
+# Standard installation paths across Windows and Linux
 COMMON_BURP_PATHS = [
     r"C:\Program Files\BurpSuiteCommunity\BurpSuiteCommunity.exe",
     r"C:\Program Files\BurpSuitePro\BurpSuitePro.exe",
     os.path.expandvars(r"%LOCALAPPDATA%\Programs\BurpSuiteCommunity\BurpSuiteCommunity.exe"),
     os.path.expandvars(r"%LOCALAPPDATA%\Programs\BurpSuitePro\BurpSuitePro.exe"),
+    "/usr/bin/burpsuite",
+    "/usr/local/bin/burpsuite",
+    "/opt/burpsuite_community/BurpSuiteCommunity",
+    "/opt/burpsuite_pro/BurpSuitePro",
+    os.path.expanduser("~/BurpSuiteCommunity/BurpSuiteCommunity"),
+    os.path.expanduser("~/BurpSuitePro/BurpSuitePro"),
 ]
 
 
@@ -94,6 +101,17 @@ class BurpManager:
                 "path": str(item),
                 "type": "jar",
             }
+
+        # Also check tools root for burp subfolder jar
+        tools_root = self.tools_dir.parent
+        if tools_root.is_dir():
+            for item in tools_root.glob("burp*/*.jar"):
+                return {
+                    "installed": True,
+                    "edition": "Community (Portable JAR)",
+                    "path": str(item),
+                    "type": "jar",
+                }
 
         return {
             "installed": False,
@@ -194,20 +212,31 @@ class BurpManager:
         self,
         progress_cb: Optional[Callable[[str, int], None]] = None,
     ) -> Tuple[bool, str]:
-        """Download official Burp Suite Community installer from PortSwigger."""
+        """Download official Burp Suite Community installer from PortSwigger (JAR on Linux, EXE on Windows)."""
         cb = progress_cb or (lambda msg, pct: None)
         cb("Connecting to PortSwigger release servers...", 5)
 
-        installer_dest = self.tools_dir / "burpsuite_community_setup.exe"
+        is_linux = platform.system() != "Windows"
+        if is_linux:
+            url = BURP_COMMUNITY_JAR_URL
+            installer_dest = self.tools_dir / "burpsuite_community.jar"
+            ua = "Mozilla/5.0 (X11; Linux x86_64) WebRipper/5.0"
+            download_msg = "Downloading Burp Suite Community Edition JAR..."
+        else:
+            url = BURP_COMMUNITY_WINDOWS_URL
+            installer_dest = self.tools_dir / "burpsuite_community_setup.exe"
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WebRipper/5.0"
+            download_msg = "Downloading Burp Suite Community Edition installer..."
+
         try:
             req = Request(
-                BURP_COMMUNITY_WINDOWS_URL,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WebRipper/5.0"},
+                url,
+                headers={"User-Agent": ua},
             )
             with urlopen(req, timeout=60) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
                 downloaded = 0
-                cb("Downloading Burp Suite Community Edition installer...", 10)
+                cb(download_msg, 10)
 
                 with open(installer_dest, "wb") as f:
                     while True:
@@ -227,12 +256,17 @@ class BurpManager:
             return False, f"Download failed: {e}"
 
     def launch_installer(self, installer_path: str) -> bool:
-        """Launch the downloaded Burp installer executable."""
+        """Launch the downloaded Burp installer executable or portable JAR."""
         try:
-            if os.path.isfile(installer_path):
+            if not os.path.isfile(installer_path):
+                return False
+            if installer_path.endswith(".jar"):
+                java = shutil.which("java") or "java"
+                subprocess.Popen([java, "-jar", installer_path], shell=False)
+                return True
+            else:
                 subprocess.Popen([installer_path], shell=False)
                 return True
-            return False
         except Exception:
             return False
 

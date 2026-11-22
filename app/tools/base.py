@@ -70,6 +70,30 @@ def _extract_zip(zip_path: Path, dest_dir: Path) -> bool:
         return False
 
 
+def _extract_tar(tar_path: Path, dest_dir: Path) -> bool:
+    """Extract a tar archive to dest_dir with Tar Slip protection. Returns True on success."""
+    import tarfile
+    try:
+        dest_path = dest_dir.resolve()
+        dest_path.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(str(tar_path), "r:*") as tf:
+            for member in tf.getmembers():
+                member_dest = (dest_path / member.name).resolve()
+                if not member_dest.is_relative_to(dest_path):
+                    raise RuntimeError(f"Tar Slip attempt detected: {member.name}")
+                if member.issym() or member.islnk():
+                    link_dest = (dest_path / member.linkname).resolve()
+                    if not link_dest.is_relative_to(dest_path):
+                        raise RuntimeError(f"Tar Slip symlink attempt detected: {member.linkname}")
+            if hasattr(tarfile, "data_filter"):
+                tf.extractall(str(dest_path), filter="data")
+            else:
+                tf.extractall(str(dest_path))
+        return True
+    except Exception:
+        return False
+
+
 class BaseTool(ABC):
     """Abstract base class for external tool wrappers."""
 

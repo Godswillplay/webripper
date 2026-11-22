@@ -38,7 +38,7 @@ def _find(name: str) -> Optional[str]:
 
 def run_nmap(target: str, output_dir: str, timeout: int = 180,
              progress_cb: Optional[Callable[[str], None]] = None) -> List[Finding]:
-    """Run nmap and parse XML output into findings."""
+    """Run nmap and parse XML output into findings, falling back to unprivileged TCP connect scan if CAP_NET_RAW is missing."""
     cb = progress_cb or (lambda s: None)
     path = _find("nmap")
     if not path:
@@ -61,16 +61,13 @@ def run_nmap(target: str, output_dir: str, timeout: int = 180,
             clean_target = host_part
             port_args = ["-p", port_part]
 
-    cmd = [path, "-sV", "-sC", "-T4"]
-    if port_args:
-        cmd.extend(port_args)
-    else:
-        cmd.extend(["--top-ports", "1000"])
-    cmd.extend(["-oX", xml_file, clean_target])
+    ports = port_args if port_args else ["--top-ports", "1000"]
+    cmd = [path, "-sV", "-sC", "-T4"] + ports + ["-oX", xml_file, clean_target]
 
     cb(f"Running: {' '.join(cmd)}")
+    proc = None
     try:
-        subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                        stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
                        creationflags=_flags(), shell=False)
     except subprocess.TimeoutExpired:
@@ -78,6 +75,34 @@ def run_nmap(target: str, output_dir: str, timeout: int = 180,
     except Exception as exc:
         cb(f"nmap error: {exc}")
         return []
+
+    # Detect container / CAP_NET_RAW / raw socket permission failures
+    raw_socket_error = False
+    if proc is not None:
+        combined_err = ((proc.stderr or "") + " " + (proc.stdout or "")).lower()
+        if (
+            "couldn't open a raw socket" in combined_err
+            or "raw socket" in combined_err
+            or "operation not permitted" in combined_err
+            or "failed to open device" in combined_err
+            or "requires root privileges" in combined_err
+            or "cap_net_raw" in combined_err
+        ):
+            raw_socket_error = True
+
+    if raw_socket_error or (not os.path.exists(xml_file) and proc is not None and proc.returncode != 0):
+        if not os.path.exists(xml_file) or raw_socket_error:
+            cb("nmap raw socket denied (container/CAP_NET_RAW); retrying with unprivileged TCP connect scan (-sT --unprivileged)...")
+            fallback_cmd = [path, "-sT", "--unprivileged", "-sV", "-sC", "-T4"] + ports + ["-oX", xml_file, clean_target]
+            try:
+                subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=timeout,
+                               stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                               creationflags=_flags(), shell=False)
+            except subprocess.TimeoutExpired:
+                cb("nmap fallback timed out")
+            except Exception as exc:
+                cb(f"nmap fallback error: {exc}")
+                return []
 
     if not os.path.exists(xml_file):
         return []
@@ -235,12 +260,68 @@ def nikto_command(target: str) -> str:
 # NUCLEI
 # =====================================================================
 
+def _has_nuclei_templates() -> bool:
+    """Check if Nuclei vulnerability templates directory exists and contains templates."""
+    candidate_dirs = [
+        Path.home() / "nuclei-templates",
+        Path.home() / ".config" / "nuclei-templates",
+        get_tools_dir() / "nuclei-templates",
+    ]
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    if xdg_data:
+        candidate_dirs.append(Path(xdg_data) / "nuclei-templates")
+
+    for c in candidate_dirs:
+        if c.is_dir():
+            try:
+                for entry in c.iterdir():
+                    if entry.is_file() and entry.suffix in (".yaml", ".yml"):
+                        return True
+                    if entry.is_dir() and entry.name not in (".git", ".github"):
+                        return True
+            except Exception:
+                continue
+    return False
+
+
+def ensure_nuclei_templates(nuclei_path: str, progress_cb: Optional[Callable[[str], None]] = None) -> bool:
+    """Ensure nuclei templates exist, downloading them via -update-templates if missing."""
+    cb = progress_cb or (lambda s: None)
+    if _has_nuclei_templates():
+        return True
+
+    cb("Nuclei templates not found. Running nuclei -update-templates...")
+    try:
+        proc = subprocess.run(
+            [nuclei_path, "-update-templates"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            creationflags=_flags(),
+            shell=False,
+            stdin=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if proc.returncode == 0:
+            cb("Nuclei templates updated successfully.")
+            return True
+        else:
+            cb(f"Nuclei template update warning: {proc.stderr[:200]}")
+            return False
+    except Exception as exc:
+        cb(f"Failed to update Nuclei templates: {exc}")
+        return False
+
+
 def run_nuclei(target: str, output_dir: str, timeout: int = 180,
                progress_cb: Optional[Callable[[str], None]] = None) -> List[Finding]:
     cb = progress_cb or (lambda s: None)
     path = _find("nuclei")
     if not path:
         return []
+
+    ensure_nuclei_templates(path, cb)
 
     json_file = os.path.join(output_dir, "nuclei_output.jsonl")
     cmd = [path, "-u", target, "-jsonl", "-o", json_file, "-silent", "-severity", "critical,high,medium", "-no-interactsh", "-timeout", "5"]

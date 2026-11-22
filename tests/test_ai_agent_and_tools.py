@@ -9,8 +9,16 @@ import zipfile
 import pytest
 from pathlib import Path
 
-from app.tools.burp import BurpManager
-from app.tools.installer import ToolInstaller, _safe_extract_zip
+from app.tools.burp import BurpManager, BURP_COMMUNITY_JAR_URL
+from app.tools.installer import (
+    ToolInstaller,
+    _safe_extract_zip,
+    _safe_extract_tar,
+    _get_github_asset_pattern,
+    get_linux_package_manager,
+)
+from app.tools.detector import _find_tool, detect_all_tools, install_tool, install_all_missing
+from app.tools.runner import run_nmap, ensure_nuclei_templates, _has_nuclei_templates
 from app.ai.client import OllamaClient
 from app.ai.setup import AISetupManager, RECOMMENDED_MODELS
 from app.ai.tools import AgentToolbox
@@ -73,6 +81,58 @@ class TestToolInstallerAndZipSlip:
         with pytest.raises(RuntimeError, match="Zip Slip attempt detected"):
             with zipfile.ZipFile(bad_zip, "r") as zf:
                 _safe_extract_zip(zf, str(target_dir))
+
+    def test_safe_extract_tar_normal(self, tmp_path):
+        import tarfile
+        import io
+        target_dir = tmp_path / "tar_dest"
+        target_dir.mkdir()
+        tar_file = tmp_path / "normal.tar.gz"
+
+        with tarfile.open(tar_file, "w:gz") as tf:
+            data = b"hello linux tar"
+            ti = tarfile.TarInfo(name="test.txt")
+            ti.size = len(data)
+            tf.addfile(ti, io.BytesIO(data))
+
+        with tarfile.open(tar_file, "r:gz") as tf:
+            _safe_extract_tar(tf, str(target_dir))
+
+        assert (target_dir / "test.txt").exists()
+        assert (target_dir / "test.txt").read_text(encoding="utf-8") == "hello linux tar"
+
+    def test_tar_slip_prevention(self, tmp_path):
+        import tarfile
+        import io
+        target_dir = tmp_path / "safe_tar_dir"
+        target_dir.mkdir()
+        bad_tar = tmp_path / "malicious.tar.gz"
+
+        with tarfile.open(bad_tar, "w:gz") as tf:
+            data = b"exploit"
+            ti = tarfile.TarInfo(name="../../evil.txt")
+            ti.size = len(data)
+            tf.addfile(ti, io.BytesIO(data))
+
+        with pytest.raises(RuntimeError, match="Tar Slip attempt detected"):
+            with tarfile.open(bad_tar, "r:gz") as tf:
+                _safe_extract_tar(tf, str(target_dir))
+
+    def test_tar_slip_symlink_prevention(self, tmp_path):
+        import tarfile
+        target_dir = tmp_path / "safe_tar_symlink_dir"
+        target_dir.mkdir()
+        bad_tar = tmp_path / "symlink_evil.tar.gz"
+
+        with tarfile.open(bad_tar, "w:gz") as tf:
+            ti = tarfile.TarInfo(name="evil_link")
+            ti.type = tarfile.SYMTYPE
+            ti.linkname = "../../etc/shadow"
+            tf.addfile(ti)
+
+        with pytest.raises(RuntimeError, match="Tar Slip symlink attempt detected"):
+            with tarfile.open(bad_tar, "r:gz") as tf:
+                _safe_extract_tar(tf, str(target_dir))
 
     def test_get_installable_tools_returns_all(self):
         installer = ToolInstaller()
@@ -239,3 +299,244 @@ Action: {"tool": "search_code", "args": {"query": "function test() { return true
                     os.environ[var] = val
                 else:
                     os.environ.pop(var, None)
+
+
+class TestLinuxToolsParity:
+    """Test Linux platform parity for tools subsystem: detection, install patterns, Burp JAR, Nmap fallback, Nuclei templates."""
+
+    def test_linux_asset_patterns_x86_64(self, monkeypatch):
+        import platform
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+
+        nuclei_pattern = _get_github_asset_pattern("nuclei")
+        assert "linux" in nuclei_pattern.lower()
+        assert "amd64" in nuclei_pattern.lower()
+        assert nuclei_pattern.endswith(".zip")
+
+        gobuster_pattern = _get_github_asset_pattern("gobuster")
+        assert "linux" in gobuster_pattern.lower()
+        assert "x86_64" in gobuster_pattern.lower()
+        assert gobuster_pattern.endswith(".tar.gz")
+
+        httpx_pattern = _get_github_asset_pattern("httpx")
+        assert "linux" in httpx_pattern.lower()
+        assert "amd64" in httpx_pattern.lower()
+
+        subfinder_pattern = _get_github_asset_pattern("subfinder")
+        assert "linux" in subfinder_pattern.lower()
+        assert "amd64" in subfinder_pattern.lower()
+
+    def test_linux_asset_patterns_arm64(self, monkeypatch):
+        import platform
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(platform, "machine", lambda: "aarch64")
+
+        nuclei_pattern = _get_github_asset_pattern("nuclei")
+        assert "arm64" in nuclei_pattern.lower()
+        assert nuclei_pattern.endswith(".zip")
+
+        gobuster_pattern = _get_github_asset_pattern("gobuster")
+        assert "arm64" in gobuster_pattern.lower()
+        assert gobuster_pattern.endswith(".tar.gz")
+
+    def test_linux_package_manager_detection(self, monkeypatch):
+        import shutil
+
+        # Test Debian/Ubuntu/Kali
+        monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/apt-get" if cmd == "apt-get" else None)
+        pkg = get_linux_package_manager()
+        assert pkg is not None
+        assert pkg[0] == "apt-get"
+        assert "sudo apt-get install -y" in pkg[1]
+
+        # Test Arch
+        monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/pacman" if cmd == "pacman" else None)
+        pkg = get_linux_package_manager()
+        assert pkg is not None
+        assert pkg[0] == "pacman"
+        assert "sudo pacman -S --noconfirm" in pkg[1]
+
+        # Test Fedora
+        monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/dnf" if cmd == "dnf" else None)
+        pkg = get_linux_package_manager()
+        assert pkg is not None
+        assert pkg[0] == "dnf"
+        assert "sudo dnf install -y" in pkg[1]
+
+    def test_nmap_install_instructions_on_linux(self, monkeypatch):
+        import platform
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr("app.tools.installer.get_linux_package_manager", lambda: ("apt-get", "sudo apt-get install -y"))
+
+        messages = []
+        installer = ToolInstaller(progress_cb=lambda msg: messages.append(msg))
+        ok = installer.install_tool("nmap")
+        assert ok is False
+        assert any("sudo apt-get install -y nmap" in m for m in messages)
+
+    def test_burp_download_and_launch_jar_on_linux(self, monkeypatch, tmp_path):
+        import platform
+        import subprocess
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+
+        mgr = BurpManager()
+        mgr.tools_dir = tmp_path
+
+        # Test download creates .jar
+        def mock_urlopen(req, timeout=60):
+            class MockResp:
+                def __init__(self):
+                    self.headers = {"Content-Length": "12"}
+                def read(self, chunk_size=None):
+                    if not hasattr(self, "_read"):
+                        self._read = True
+                        return b"PK\x03\x04mockjar"
+                    return b""
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    pass
+            return MockResp()
+
+        monkeypatch.setattr("app.tools.burp.urlopen", mock_urlopen)
+        ok, dest = mgr.download_installer()
+        assert ok is True
+        assert dest.endswith(".jar")
+        assert os.path.exists(dest)
+
+        # Test launch executes java -jar
+        executed_cmds = []
+        monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kwargs: executed_cmds.append(cmd))
+        monkeypatch.setattr("shutil.which", lambda prog: "/usr/bin/java" if prog == "java" else None)
+
+        launched = mgr.launch_installer(dest)
+        assert launched is True
+        assert len(executed_cmds) == 1
+        assert executed_cmds[0] == ["/usr/bin/java", "-jar", dest]
+
+    def test_burp_jar_detection_and_detector_alignment(self, tmp_path, monkeypatch):
+        jar_path = tmp_path / "burpsuite_community.jar"
+        jar_path.write_bytes(b"PK\x03\x04fakejar")
+
+        mgr = BurpManager()
+        mgr.tools_dir = tmp_path
+
+        # BurpManager detects it
+        info = mgr.detect_burp()
+        assert info["installed"] is True
+        assert info["edition"] == "Community (Portable JAR)"
+        assert info["path"] == str(jar_path)
+
+        # detector._find_tool and detect_all_tools detect it
+        monkeypatch.setattr("app.tools.burp.BurpManager", lambda: mgr)
+        monkeypatch.setattr("app.tools.detector.get_tools_dir", lambda: tmp_path)
+        found_path = _find_tool("burpsuite")
+        assert found_path == str(jar_path)
+
+        all_tools = detect_all_tools()
+        burp_status = next((t for t in all_tools if t.name == "Burp Suite"), None)
+        assert burp_status is not None
+        assert burp_status.installed is True
+        assert burp_status.version == "Community (Portable JAR)"
+        assert burp_status.path == str(jar_path)
+
+    def test_nmap_cap_net_raw_fallback(self, tmp_path, monkeypatch):
+        import subprocess
+
+        calls = []
+
+        class MockCompletedProcess:
+            def __init__(self, returncode, stdout, stderr):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+
+        def mock_run(cmd, **kwargs):
+            calls.append(list(cmd))
+            if len(calls) == 1:
+                # First run fails with raw socket error
+                return MockCompletedProcess(
+                    returncode=1,
+                    stdout="",
+                    stderr="Couldn't open a raw socket. Error: Operation not permitted (1)",
+                )
+            else:
+                # Second run (unprivileged fallback) succeeds and writes mock XML
+                xml_out = tmp_path / "nmap_output.xml"
+                xml_out.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun>
+  <host>
+    <address addr="127.0.0.1" addrtype="ipv4"/>
+    <ports>
+      <port protocol="tcp" portid="80">
+        <state state="open"/>
+        <service name="http" product="nginx" version="1.24"/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>""", encoding="utf-8")
+                return MockCompletedProcess(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+        monkeypatch.setattr("app.tools.runner._find", lambda name: "/usr/bin/nmap")
+
+        log_messages = []
+        findings = run_nmap("127.0.0.1", str(tmp_path), progress_cb=lambda m: log_messages.append(m))
+
+        assert len(calls) == 2
+        # First call did not have -sT --unprivileged
+        assert "-sT" not in calls[0]
+        # Fallback call has -sT and --unprivileged
+        assert "-sT" in calls[1]
+        assert "--unprivileged" in calls[1]
+        assert any("container/CAP_NET_RAW" in m for m in log_messages)
+        assert len(findings) == 1
+        assert "nginx" in findings[0].title
+
+    def test_nuclei_templates_check_and_update(self, tmp_path, monkeypatch):
+        import subprocess
+        from app.tools import runner
+
+        # Mock template check to return False
+        monkeypatch.setattr(runner, "_has_nuclei_templates", lambda: False)
+
+        calls = []
+        class MockProc:
+            returncode = 0
+            stderr = ""
+
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kwargs: calls.append(cmd) or MockProc())
+
+        messages = []
+        ok = ensure_nuclei_templates("/usr/bin/nuclei", progress_cb=lambda m: messages.append(m))
+
+        assert ok is True
+        assert len(calls) == 1
+        assert calls[0] == ["/usr/bin/nuclei", "-update-templates"]
+        assert any("Nuclei templates not found" in m for m in messages)
+        assert any("updated successfully" in m for m in messages)
+
+    def test_detector_delegates_to_tool_installer(self, monkeypatch):
+        installed_tools = []
+        missing_installed = []
+
+        class MockToolInstaller:
+            def __init__(self, progress_cb=None):
+                self.progress_cb = progress_cb
+            def install_tool(self, name):
+                installed_tools.append(name)
+                return True
+            def install_all_missing(self):
+                missing_installed.append(True)
+                return {"nuclei": True}
+
+        monkeypatch.setattr("app.tools.installer.ToolInstaller", MockToolInstaller)
+
+        res1 = install_tool("nuclei")
+        assert res1 is True
+        assert installed_tools == ["nuclei"]
+
+        res2 = install_all_missing()
+        assert res2 == {"nuclei": True}
+        assert missing_installed == [True]

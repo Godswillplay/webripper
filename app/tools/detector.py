@@ -103,6 +103,25 @@ _TOOL_DEFS = {
 
 def _find_tool(name: str) -> Optional[str]:
     """Find a tool executable in PATH or tools dir."""
+    if name in ("burp", "burpsuite"):
+        from .burp import BurpManager
+        burp_info = BurpManager().detect_burp()
+        if burp_info.get("installed") and burp_info.get("path"):
+            return burp_info["path"]
+
+    if name == "nmap":
+        from .installer import COMMON_NMAP_PATHS
+        which = shutil.which("nmap")
+        if which:
+            return which
+        for p in COMMON_NMAP_PATHS:
+            if os.path.isfile(p):
+                return p
+        tools_dir = get_tools_dir()
+        for cand in [tools_dir / "nmap" / "nmap.exe", tools_dir / "nmap" / "nmap"]:
+            if cand.is_file():
+                return str(cand)
+
     tools_dir = get_tools_dir()
     is_win = platform.system() == "Windows"
     exts = [".exe", ""] if is_win else [""]
@@ -171,6 +190,8 @@ def _find_tool(name: str) -> Optional[str]:
 def _get_version(tool_path: str, check_args: List[str]) -> str:
     """Try to get version string from tool."""
     if not check_args:
+        if tool_path.endswith(".jar"):
+            return "Community (Portable JAR)"
         return "installed"
     try:
         flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
@@ -225,123 +246,16 @@ def install_tool(
     tool_name: str,
     progress_cb: Optional[Callable[[str], None]] = None,
 ) -> bool:
-    """Install a tool to the tools directory. Returns True on success."""
-    cb = progress_cb or (lambda s: None)
-
-    if tool_name not in _TOOL_DEFS:
-        cb(f"Unknown tool: {tool_name}")
-        return False
-
-    info = _TOOL_DEFS[tool_name]
-    if not info["installable"]:
-        cb(f"{tool_name} requires manual installation. Visit: {info['url']}")
-        return False
-
-    tools_dir = get_tools_dir()
-    tool_dir = tools_dir / tool_name
-    tool_dir.mkdir(parents=True, exist_ok=True)
-
-    install_type = info.get("install_type", "")
-
-    if install_type == "burp_custom":
-        try:
-            from .burp import BurpManager
-            bm = BurpManager()
-            ok, res = bm.download_installer(lambda msg, pct: cb(f"[Burp] {msg} ({pct}%)"))
-            if ok:
-                cb("Launching Burp Suite installer...")
-                bm.launch_installer(res)
-                return True
-            cb(f"Burp download failed: {res}")
-            return False
-        except Exception as exc:
-            cb(f"Burp installer error: {exc}")
-            return False
-
-    elif install_type == "zip_python":
-        # Download zip and extract (sqlmap)
-        zip_path = tool_dir / f"{tool_name}.zip"
-        if _download_file(info["url"], zip_path, cb):
-            cb(f"Extracting {tool_name}...")
-            if _extract_zip(zip_path, tool_dir):
-                zip_path.unlink(missing_ok=True)
-                cb(f"{tool_name} installed successfully")
-                return True
-        return False
-
-    elif install_type == "github_release":
-        # For GitHub releases, we need to find the right asset URL
-        # Download the release page and find the asset
-        try:
-            # Convert latest URL to API URL
-            repo_parts = info["url"].replace("https://github.com/", "").replace("/releases/latest", "")
-            api_url = f"https://api.github.com/repos/{repo_parts}/releases/latest"
-            cb(f"Checking latest release for {tool_name}...")
-
-            req = Request(api_url, headers={
-                "User-Agent": "WebRipper-Recon/4.0",
-                "Accept": "application/vnd.github.v3+json",
-            })
-            with urlopen(req, timeout=15) as resp:
-                release_data = json.loads(resp.read())
-
-            # Find matching asset
-            pattern = info.get("asset_pattern", "")
-            arch_patterns = ["amd64", "x86_64", "x64"]
-            best_asset = None
-
-            for asset in release_data.get("assets", []):
-                aname = asset["name"].lower()
-                if pattern in aname and any(a in aname for a in arch_patterns):
-                    if aname.endswith(".zip"):
-                        best_asset = asset
-                        break
-
-            if not best_asset:
-                # Fallback: any zip matching pattern
-                for asset in release_data.get("assets", []):
-                    aname = asset["name"].lower()
-                    if pattern in aname and aname.endswith(".zip"):
-                        best_asset = asset
-                        break
-
-            if not best_asset:
-                cb(f"Could not find suitable download for {tool_name}")
-                return False
-
-            download_url = best_asset["browser_download_url"]
-            zip_path = tool_dir / best_asset["name"]
-
-            if _download_file(download_url, zip_path, cb):
-                cb(f"Extracting {tool_name}...")
-                if _extract_zip(zip_path, tool_dir):
-                    zip_path.unlink(missing_ok=True)
-                    cb(f"{tool_name} installed successfully")
-                    return True
-
-        except Exception as exc:
-            cb(f"Failed to install {tool_name}: {exc}")
-
-        return False
-
-    return False
+    """Install a tool to the tools directory using the unified ToolInstaller."""
+    from .installer import ToolInstaller
+    installer = ToolInstaller(progress_cb=progress_cb)
+    return installer.install_tool(tool_name)
 
 
 def install_all_missing(
     progress_cb: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, bool]:
-    """Install all missing installable tools. Returns dict of name -> success."""
-    cb = progress_cb or (lambda s: None)
-    results = {}
-
-    for name, info in _TOOL_DEFS.items():
-        if not info["installable"]:
-            continue
-        path = _find_tool(name)
-        if path:
-            results[name] = True
-            continue
-        cb(f"\n--- Installing {name} ---")
-        results[name] = install_tool(name, cb)
-
-    return results
+    """Install all missing installable tools using the unified ToolInstaller."""
+    from .installer import ToolInstaller
+    installer = ToolInstaller(progress_cb=progress_cb)
+    return installer.install_all_missing()

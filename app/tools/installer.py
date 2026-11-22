@@ -17,6 +17,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
@@ -33,12 +34,67 @@ def _get_tools_dir() -> str:
     return base
 
 
-# Tool definitions: name -> (type, owner/repo or pip-name, asset_pattern)
+def _get_platform_info() -> Tuple[str, str]:
+    """Return (os_name, arch) normalized for release asset matching."""
+    sys_plat = platform.system().lower()
+    machine = platform.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        arch = "arm64"
+    else:
+        arch = "amd64"
+    return sys_plat, arch
+
+
+def _get_github_asset_pattern(tool: str) -> str:
+    """Return platform-appropriate asset glob pattern for GitHub tool."""
+    sys_plat, arch = _get_platform_info()
+    is_win = (sys_plat == "windows")
+    is_arm = (arch == "arm64")
+
+    if is_win:
+        patterns = {
+            "nuclei": "nuclei_*_windows_amd64.zip",
+            "gobuster": "gobuster_*_windows_x86_64.zip",
+            "httpx": "httpx_*_windows_amd64.zip",
+            "subfinder": "subfinder_*_windows_amd64.zip",
+            "sslscan": "sslscan_*_windows64.zip",
+        }
+    else:
+        arch_pd = "arm64" if is_arm else "amd64"
+        arch_go = "arm64" if is_arm else "x86_64"
+        patterns = {
+            "nuclei": f"nuclei_*_linux_{arch_pd}.zip",
+            "gobuster": f"gobuster_*_Linux_{arch_go}.tar.gz",
+            "httpx": f"httpx_*_linux_{arch_pd}.zip",
+            "subfinder": f"subfinder_*_linux_{arch_pd}.zip",
+            "sslscan": "sslscan_*_linux*.tar.gz",
+        }
+    return patterns.get(tool, f"{tool}_*_{sys_plat}*.zip")
+
+
+def get_linux_package_manager() -> Optional[Tuple[str, str]]:
+    """Detect available Linux package manager and return (manager_name, install_cmd_prefix)."""
+    managers = [
+        ("apt-get", "sudo apt-get install -y"),
+        ("apt", "sudo apt install -y"),
+        ("pacman", "sudo pacman -S --noconfirm"),
+        ("dnf", "sudo dnf install -y"),
+        ("zypper", "sudo zypper install -y"),
+        ("apk", "sudo apk add"),
+    ]
+    for mgr, cmd in managers:
+        if shutil.which(mgr):
+            return mgr, cmd
+    return None
+
+
+# Tool definitions: name -> (type, owner/repo or pip-name, default_asset_pattern)
 _GITHUB_TOOLS = {
     "nuclei":    ("projectdiscovery", "nuclei",    "nuclei_*_windows_amd64.zip"),
     "gobuster":  ("OJ",               "gobuster",  "gobuster_*_windows_x86_64.zip"),
     "httpx":     ("projectdiscovery", "httpx",     "httpx_*_windows_amd64.zip"),
     "subfinder": ("projectdiscovery", "subfinder", "subfinder_*_windows_amd64.zip"),
+    "sslscan":   ("rbsec",            "sslscan",   "sslscan_*_windows64.zip"),
 }
 
 _PIP_TOOLS = {
@@ -50,6 +106,9 @@ NMAP_DOWNLOAD_URL = "https://nmap.org/dist/nmap-7.95-setup.exe"
 COMMON_NMAP_PATHS = [
     r"C:\Program Files (x86)\Nmap\nmap.exe",
     r"C:\Program Files\Nmap\nmap.exe",
+    "/usr/bin/nmap",
+    "/usr/local/bin/nmap",
+    "/opt/nmap/bin/nmap",
 ]
 
 
@@ -63,6 +122,24 @@ def _safe_extract_zip(zf: zipfile.ZipFile, target_dir: str) -> None:
         if not member_dest.is_relative_to(target_path):
             raise RuntimeError(f"Zip Slip attempt detected in archive member: {member.filename}")
     zf.extractall(target_path)
+
+
+def _safe_extract_tar(tf: tarfile.TarFile, target_dir: str) -> None:
+    """Extract tar archive safely, preventing Tar Slip directory traversal attacks."""
+    target_path = Path(target_dir).resolve()
+    target_path.mkdir(parents=True, exist_ok=True)
+    for member in tf.getmembers():
+        member_dest = (target_path / member.name).resolve()
+        if not member_dest.is_relative_to(target_path):
+            raise RuntimeError(f"Tar Slip attempt detected in archive member: {member.name}")
+        if member.issym() or member.islnk():
+            link_dest = (target_path / member.linkname).resolve()
+            if not link_dest.is_relative_to(target_path):
+                raise RuntimeError(f"Tar Slip symlink attempt detected: {member.linkname}")
+    if hasattr(tarfile, "data_filter"):
+        tf.extractall(target_path, filter="data")
+    else:
+        tf.extractall(target_path)
 
 
 class ToolInstaller:
@@ -175,21 +252,34 @@ class ToolInstaller:
         return tools
 
     def get_nmap_path(self) -> Optional[str]:
-        """Locate nmap.exe on the system."""
-        for p in COMMON_NMAP_PATHS:
-            if os.path.isfile(p):
-                return p
+        """Locate nmap executable on the system."""
         which = shutil.which("nmap")
         if which:
             return which
-        # Check tools dir
-        local_nmap = os.path.join(self._tools_dir, "nmap", "nmap.exe")
-        if os.path.isfile(local_nmap):
-            return local_nmap
+        for p in COMMON_NMAP_PATHS:
+            if os.path.isfile(p):
+                return p
+        # Check tools dir (windows nmap.exe or linux nmap)
+        for name in ("nmap.exe", "nmap"):
+            local_nmap = os.path.join(self._tools_dir, "nmap", name)
+            if os.path.isfile(local_nmap):
+                return local_nmap
         return None
 
     def _get_tool_path(self, name: str) -> Tuple[bool, Optional[str]]:
         """Check if tool is in PATH or WebRipper tools dir."""
+        if name in ("burp", "burpsuite"):
+            burp_info = self.burp_manager.detect_burp()
+            if burp_info.get("installed") and burp_info.get("path"):
+                return True, burp_info["path"]
+            return False, None
+
+        if name == "nmap":
+            nmap_path = self.get_nmap_path()
+            if nmap_path:
+                return True, nmap_path
+            return False, None
+
         which = shutil.which(name)
         if which:
             return True, which
@@ -231,17 +321,39 @@ class ToolInstaller:
             asset_name = None
             import fnmatch
 
+            # Dynamically resolve platform-appropriate asset pattern
+            effective_pattern = _get_github_asset_pattern(name) or pattern
+
             for asset in release.get("assets", []):
                 a_name = asset["name"].lower()
-                if fnmatch.fnmatch(a_name, pattern.lower()):
+                if fnmatch.fnmatch(a_name, effective_pattern.lower()):
                     download_url = asset["browser_download_url"]
                     asset_name = asset["name"]
                     break
 
             if not download_url:
+                # Try provided default pattern
                 for asset in release.get("assets", []):
                     a_name = asset["name"].lower()
-                    if ("windows" in a_name or "win" in a_name) and ("amd64" in a_name or "x86_64" in a_name or "arm64" in a_name) and a_name.endswith(".zip"):
+                    if fnmatch.fnmatch(a_name, pattern.lower()):
+                        download_url = asset["browser_download_url"]
+                        asset_name = asset["name"]
+                        break
+
+            if not download_url:
+                # Platform fallback
+                sys_plat, arch = _get_platform_info()
+                arch_tokens = ["amd64", "x86_64", "x64"] if arch == "amd64" else ["arm64", "aarch64"]
+                if sys_plat == "windows":
+                    plat_tokens = ["windows", "win"]
+                    exts = (".zip",)
+                else:
+                    plat_tokens = ["linux"]
+                    exts = (".tar.gz", ".tgz", ".zip")
+
+                for asset in release.get("assets", []):
+                    a_name = asset["name"].lower()
+                    if any(p in a_name for p in plat_tokens) and any(a in a_name for a in arch_tokens) and any(a_name.endswith(e) for e in exts):
                         download_url = asset["browser_download_url"]
                         asset_name = asset["name"]
                         break
@@ -252,15 +364,24 @@ class ToolInstaller:
 
             tool_dir = os.path.join(self._tools_dir, name)
             os.makedirs(tool_dir, exist_ok=True)
-            zip_path = os.path.join(tool_dir, asset_name)
+            archive_path = os.path.join(tool_dir, asset_name)
 
             self._progress(f"Downloading {asset_name}...")
-            self._download_file(download_url, zip_path)
+            self._download_file(download_url, archive_path)
 
             self._progress(f"Safely extracting {name}...")
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                _safe_extract_zip(zf, tool_dir)
-            os.remove(zip_path)
+            if asset_name.endswith((".tar.gz", ".tgz")):
+                with tarfile.open(archive_path, "r:*") as tf:
+                    _safe_extract_tar(tf, tool_dir)
+            elif asset_name.endswith(".zip"):
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    _safe_extract_zip(zf, tool_dir)
+            else:
+                self._progress(f"✗ Unsupported archive format: {asset_name}")
+                return False
+
+            if os.path.exists(archive_path):
+                os.remove(archive_path)
 
             if platform.system() != "Windows":
                 for root, _, files in os.walk(tool_dir):
@@ -321,7 +442,17 @@ class ToolInstaller:
             return False
 
     def _install_nmap(self) -> bool:
-        """Download official Nmap Windows installer and prompt execution."""
+        """Download official Nmap Windows installer or provide Linux distro package instructions."""
+        if platform.system() != "Windows":
+            pkg_mgr = get_linux_package_manager()
+            if pkg_mgr:
+                mgr_name, install_cmd = pkg_mgr
+                self._progress("Nmap on Linux requires system package installation.")
+                self._progress(f"To install, run: {install_cmd} nmap")
+            else:
+                self._progress("Please install Nmap using your Linux distribution package manager (e.g. sudo apt install nmap).")
+            return False
+
         try:
             dest_dir = os.path.join(self._tools_dir, "nmap")
             os.makedirs(dest_dir, exist_ok=True)

@@ -205,8 +205,37 @@ Action: {"tool": "search_code", "args": {"query": "function test() { return true
     def test_burp_env_proxy_includes_no_proxy(self):
         from app.tools.burp import BurpManager
         import os
-        bm = BurpManager(proxy_url="http://127.0.0.1:8080")
-        bm.set_environment_proxies(set_ca=False)
-        assert os.environ.get("NO_PROXY") == "localhost,127.0.0.1,::1"
-        bm.unset_environment_proxies()
-        assert "NO_PROXY" not in os.environ
+
+        saved_snapshot = {
+            var: os.environ.get(var)
+            for var in BurpManager.ENV_PROXY_VARS
+        }
+
+        try:
+            # Set up explicit initial state: pre-existing NO_PROXY and ALL_PROXY, absent HTTP_PROXY
+            os.environ["NO_PROXY"] = "preexisting.internal"
+            os.environ["ALL_PROXY"] = "socks5://127.0.0.1:9050"
+            os.environ.pop("HTTP_PROXY", None)
+            os.environ.pop("HTTPS_PROXY", None)
+
+            bm = BurpManager(proxy_url="http://127.0.0.1:8080")
+            bm.set_environment_proxies(set_ca=False)
+
+            # While active, proxies are set and NO_PROXY includes local loopbacks
+            assert os.environ.get("NO_PROXY") == "localhost,127.0.0.1,::1"
+            assert os.environ.get("HTTP_PROXY") == "http://127.0.0.1:8080"
+            assert os.environ.get("ALL_PROXY") == "http://127.0.0.1:8080"
+
+            bm.unset_environment_proxies()
+
+            # After unset, original environment must be restored
+            assert os.environ.get("NO_PROXY") == "preexisting.internal"
+            assert os.environ.get("ALL_PROXY") == "socks5://127.0.0.1:9050"
+            assert "HTTP_PROXY" not in os.environ
+            assert "HTTPS_PROXY" not in os.environ
+        finally:
+            for var, val in saved_snapshot.items():
+                if val is not None:
+                    os.environ[var] = val
+                else:
+                    os.environ.pop(var, None)

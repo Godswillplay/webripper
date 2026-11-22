@@ -42,11 +42,26 @@ COMMON_BURP_PATHS = [
 class BurpManager:
     """Manages Burp Suite detection, downloading, proxy checking, and CA certificates."""
 
+    ENV_PROXY_VARS = (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "NO_PROXY",
+        "no_proxy",
+        "REQUESTS_CA_BUNDLE",
+        "SSL_CERT_FILE",
+        "CURL_CA_BUNDLE",
+    )
+
     def __init__(self, proxy_url: str = "http://127.0.0.1:8080"):
         self.proxy_url = proxy_url.rstrip("/")
         self.tools_dir = Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "WebRipper" / "tools" / "burp"
         self.tools_dir.mkdir(parents=True, exist_ok=True)
         self.ca_cert_path = self.tools_dir / "burp_cacert.pem"
+        self._saved_env: Optional[Dict[str, Optional[str]]] = None
 
     def detect_burp(self) -> Dict[str, any]:
         """Detect if Burp Suite executable is present on the machine."""
@@ -145,11 +160,16 @@ class BurpManager:
         return {"server": self.proxy_url}
 
     def set_environment_proxies(self, set_ca: bool = True) -> None:
-        """Set environment variables for HTTP tools and Python libraries."""
+        """Set environment variables for HTTP tools and Python libraries, saving existing values."""
+        if self._saved_env is None:
+            self._saved_env = {var: os.environ.get(var) for var in self.ENV_PROXY_VARS}
+
         os.environ["HTTP_PROXY"] = self.proxy_url
         os.environ["HTTPS_PROXY"] = self.proxy_url
         os.environ["http_proxy"] = self.proxy_url
         os.environ["https_proxy"] = self.proxy_url
+        os.environ["ALL_PROXY"] = self.proxy_url
+        os.environ["all_proxy"] = self.proxy_url
         os.environ["NO_PROXY"] = "localhost,127.0.0.1,::1"
         os.environ["no_proxy"] = "localhost,127.0.0.1,::1"
         if set_ca and self.ca_cert_path.is_file():
@@ -158,11 +178,17 @@ class BurpManager:
             os.environ["CURL_CA_BUNDLE"] = str(self.ca_cert_path)
 
     def unset_environment_proxies(self) -> None:
-        """Restore clean environment without proxies."""
-        for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
-                    "NO_PROXY", "no_proxy",
-                    "REQUESTS_CA_BUNDLE", "SSL_CERT_FILE", "CURL_CA_BUNDLE"):
-            os.environ.pop(var, None)
+        """Restore environment variables to their values prior to set_environment_proxies."""
+        if self._saved_env is not None:
+            for var, val in self._saved_env.items():
+                if val is not None:
+                    os.environ[var] = val
+                else:
+                    os.environ.pop(var, None)
+            self._saved_env = None
+        else:
+            for var in self.ENV_PROXY_VARS:
+                os.environ.pop(var, None)
 
     def download_installer(
         self,

@@ -482,22 +482,23 @@ def test_no_scanner_sets_verified_directly():
 def test_server_deterministic_ten_routes(fixture_server):
     """Verify that all 10 local server routes serve deterministic responses per spec."""
     base_url = fixture_server
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     # 1. /xss: reflects user input q in <script> context
-    with urllib.request.urlopen(f"{base_url}/xss?q=canary_eval_42") as resp:
+    with opener.open(f"{base_url}/xss?q=canary_eval_42") as resp:
         body = resp.read().decode("utf-8")
         assert resp.status == 200
         assert "<script>" in body
         assert "canary_eval_42" in body
 
     # 2. /sqli: if id has single quote, returns SQL syntax error, else normal row
-    with urllib.request.urlopen(f"{base_url}/sqli?id=1") as resp:
+    with opener.open(f"{base_url}/sqli?id=1") as resp:
         assert resp.status == 200
         data = json.loads(resp.read().decode("utf-8"))
         assert data.get("status") == "ok"
 
     try:
-        urllib.request.urlopen(f"{base_url}/sqli?id=1'")
+        opener.open(f"{base_url}/sqli?id=1'")
         pytest.fail("Expected HTTP 500 on SQL single quote probe")
     except urllib.error.HTTPError as err:
         assert err.code == 500
@@ -505,13 +506,13 @@ def test_server_deterministic_ten_routes(fixture_server):
 
     # 3. /cors-vuln: reflects Origin header and sets Access-Control-Allow-Credentials: true
     req_cors = urllib.request.Request(f"{base_url}/cors-vuln", headers={"Origin": "https://attacker.example.com"})
-    with urllib.request.urlopen(req_cors) as resp:
+    with opener.open(req_cors) as resp:
         assert resp.status == 200
         assert resp.headers.get("Access-Control-Allow-Origin") == "https://attacker.example.com"
         assert resp.headers.get("Access-Control-Allow-Credentials") == "true"
 
     # 4. /cors-safe: returns Access-Control-Allow-Origin: * without credentials and without origin reflection
-    with urllib.request.urlopen(f"{base_url}/cors-safe") as resp:
+    with opener.open(f"{base_url}/cors-safe") as resp:
         assert resp.status == 200
         assert resp.headers.get("Access-Control-Allow-Origin") == "*"
         assert resp.headers.get("Access-Control-Allow-Credentials") is None
@@ -521,7 +522,7 @@ def test_server_deterministic_ten_routes(fixture_server):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
 
-    no_redir = urllib.request.build_opener(_NoRedirectOpener())
+    no_redir = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectOpener())
     try:
         no_redir.open(f"{base_url}/redirect?url=https://attacker.example.com/defense-proof")
     except urllib.error.HTTPError as err:
@@ -529,31 +530,31 @@ def test_server_deterministic_ten_routes(fixture_server):
         assert err.headers.get("Location") == "https://attacker.example.com/defense-proof"
 
     # 6. /exposed-git/.git/HEAD: returns ref: refs/heads/main\n
-    with urllib.request.urlopen(f"{base_url}/exposed-git/.git/HEAD") as resp:
+    with opener.open(f"{base_url}/exposed-git/.git/HEAD") as resp:
         assert resp.status == 200
         assert resp.read().decode("utf-8") == "ref: refs/heads/main\n"
 
     # 7. /catch-all-fake-404/*: returns 200 with HTML 'Page not found generic template'
-    with urllib.request.urlopen(f"{base_url}/catch-all-fake-404/nonexistent_file.json") as resp:
+    with opener.open(f"{base_url}/catch-all-fake-404/nonexistent_file.json") as resp:
         assert resp.status == 200
         assert "Page not found generic template" in resp.read().decode("utf-8")
 
     # 8. /canary-vuln: returns token canary-delta-revealed-9912 only when canary probe header/body sent
-    with urllib.request.urlopen(f"{base_url}/canary-vuln") as resp:
+    with opener.open(f"{base_url}/canary-vuln") as resp:
         assert "canary-delta-revealed-9912" not in resp.read().decode("utf-8")
 
     req_canary = urllib.request.Request(f"{base_url}/canary-vuln", headers={"X-Canary-Probe": "activate"})
-    with urllib.request.urlopen(req_canary) as resp:
+    with opener.open(req_canary) as resp:
         assert "canary-delta-revealed-9912" in resp.read().decode("utf-8")
 
     # 9. /canary-fake: returns 200 with status code OK but no token delta
     req_fake = urllib.request.Request(f"{base_url}/canary-fake", headers={"X-Canary-Probe": "activate"})
-    with urllib.request.urlopen(req_fake) as resp:
+    with opener.open(req_fake) as resp:
         assert resp.status == 200
         assert "canary-delta-revealed-9912" not in resp.read().decode("utf-8")
 
     # 10. /clean: clean HTML page with no vulnerabilities
-    with urllib.request.urlopen(f"{base_url}/clean") as resp:
+    with opener.open(f"{base_url}/clean") as resp:
         assert resp.status == 200
         assert "Clean Safe Page" in resp.read().decode("utf-8")
 

@@ -25,6 +25,10 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from .burp import BurpManager
+try:
+    from .zap import ZAPManager
+except ImportError:
+    ZAPManager = None
 
 
 def _get_tools_dir() -> str:
@@ -149,6 +153,7 @@ class ToolInstaller:
         self._progress = progress_cb or (lambda msg: None)
         self._tools_dir = _get_tools_dir()
         self.burp_manager = BurpManager()
+        self.zap_manager = ZAPManager() if ZAPManager is not None else None
 
     @property
     def progress_cb(self) -> Callable[[str], None]:
@@ -177,6 +182,8 @@ class ToolInstaller:
             return False
         elif name == "nmap":
             return self._install_nmap()
+        elif name in ("zaproxy", "zap"):
+            return self._install_zap()
         else:
             self._progress(f"Unknown tool: {name}")
             return False
@@ -249,6 +256,35 @@ class ToolInstaller:
             "can_auto_install": True,
         }
 
+        # 5. OWASP ZAP
+        zap_mgr = getattr(self, "zap_manager", None)
+        if zap_mgr is not None:
+            zap_info = zap_mgr.detect_zap()
+            is_zap_running = zap_mgr.is_proxy_running()
+        else:
+            _zm_cls = ZAPManager
+            if _zm_cls is None:
+                try:
+                    from .zap import ZAPManager as _zm_cls
+                except Exception:
+                    _zm_cls = None
+            if _zm_cls is not None:
+                _zm = _zm_cls()
+                zap_info = _zm.detect_zap()
+                is_zap_running = _zm.is_proxy_running()
+            else:
+                zap_info = {"installed": False, "path": None}
+                is_zap_running = False
+
+        tools["zaproxy"] = {
+            "type": "gui_proxy",
+            "installed": zap_info["installed"],
+            "path": zap_info["path"],
+            "source": "zaproxy.org",
+            "proxy_active": is_zap_running,
+            "can_auto_install": False,
+        }
+
         return tools
 
     def get_nmap_path(self) -> Optional[str]:
@@ -272,6 +308,30 @@ class ToolInstaller:
             burp_info = self.burp_manager.detect_burp()
             if burp_info.get("installed") and burp_info.get("path"):
                 return True, burp_info["path"]
+            return False, None
+
+        if name in ("zaproxy", "zap"):
+            zap_mgr = getattr(self, "zap_manager", None)
+            if zap_mgr is None:
+                _zm_cls = ZAPManager
+                if _zm_cls is None:
+                    try:
+                        from .zap import ZAPManager as _zm_cls
+                    except Exception:
+                        _zm_cls = None
+                if _zm_cls is not None:
+                    try:
+                        zap_mgr = _zm_cls()
+                    except Exception:
+                        zap_mgr = None
+            if zap_mgr is not None:
+                zap_info = zap_mgr.detect_zap()
+                if zap_info.get("installed") and zap_info.get("path"):
+                    return True, zap_info["path"]
+                return False, None
+            which = shutil.which("zaproxy") or shutil.which("zap")
+            if which:
+                return True, which
             return False, None
 
         if name == "nmap":
@@ -467,6 +527,22 @@ class ToolInstaller:
         except Exception as exc:
             self._progress(f"Nmap download failed: {exc}")
             return False
+
+    def _install_zap(self) -> bool:
+        """Provide installation instructions for OWASP ZAP (requires system installation)."""
+        if platform.system() != "Windows":
+            pkg_mgr = get_linux_package_manager()
+            if pkg_mgr:
+                mgr_name, install_cmd = pkg_mgr
+                self._progress("OWASP ZAP on Linux requires system package installation.")
+                self._progress(f"To install, run: {install_cmd} zaproxy")
+            else:
+                self._progress("Please install OWASP ZAP using your Linux distribution package manager (e.g. sudo apt-get install -y zaproxy or sudo pacman -S zaproxy).")
+            return False
+
+        self._progress("OWASP ZAP on Windows requires manual installer setup (Java 11+ runtime required).")
+        self._progress("Download official installer from: https://www.zaproxy.org/download/")
+        return False
 
     def _download_file(self, url: str, dest: str) -> None:
         """Download a file with progress updates."""

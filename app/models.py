@@ -189,6 +189,7 @@ class RipperSettings:
 
     # External tools
     use_external_tools: bool = True  # run detected tools
+    enable_zap: bool = True          # OWASP ZAP passive proxy inspection
     tool_timeout: int = 120          # timeout for external tools (seconds)
 
     # Local AI settings
@@ -220,6 +221,7 @@ class RipperSettings:
             "user_agent": self.user_agent,
             "profile": self.profile,
             "use_external_tools": self.use_external_tools,
+            "enable_zap": self.enable_zap,
             "scan_secrets": self.scan_secrets,
             "scan_headers": self.scan_headers,
             "scan_tech": self.scan_tech,
@@ -416,6 +418,11 @@ class Finding:
     def cwe(self) -> str:
         """Return CWE identifier from metadata."""
         return self.metadata.get("cwe", "")
+
+    @property
+    def wasc(self) -> str:
+        """Return WASC identifier from metadata."""
+        return self.metadata.get("wasc", "")
 
     @property
     def owasp(self) -> str:

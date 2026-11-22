@@ -571,6 +571,67 @@ def generate_sqlmap_commands(
 
 
 # =====================================================================
+# OWASP ZAP
+# =====================================================================
+
+def run_zap(
+    target: str,
+    output_dir: str = "",
+    timeout: int = 120,
+    progress_cb: Optional[Callable[[str], None]] = None,
+) -> List[Finding]:
+    """
+    Run ZAP passive/active harvesting step if ZAP is running or available,
+    delegating to ZAPManager to harvest findings.
+    Ensures all findings strictly adhere to WebRipper's finding contract
+    (confidence='POSSIBLE' or 'INFO', never 'VERIFIED').
+    """
+    cb = progress_cb or (lambda s: None)
+    try:
+        from .zap import ZAPManager
+    except Exception as exc:
+        cb(f"zap: ZAPManager not available: {exc}")
+        return []
+
+    try:
+        mgr = ZAPManager()
+        zap_info = mgr.detect_zap()
+        is_running = mgr.is_proxy_running()
+        if not zap_info.get("installed") and not is_running:
+            cb("zap: OWASP ZAP is not installed or running")
+            return []
+
+        cb("Harvesting findings from OWASP ZAP...")
+        if is_running and hasattr(mgr, "drain_passive_scan"):
+            try:
+                mgr.drain_passive_scan(timeout=min(20.0, float(timeout)), settle_delay=1.0)
+            except Exception as drain_exc:
+                cb(f"zap: passive scan drain notice: {drain_exc}")
+
+        raw_findings = mgr.get_alerts(base_url=target) if hasattr(mgr, "get_alerts") else []
+        enforced_findings: List[Finding] = []
+
+        for f in raw_findings:
+            # Enforce WebRipper finding contract: confidence must only be POSSIBLE or INFO, never VERIFIED
+            conf = f.confidence.value if hasattr(f.confidence, "value") else str(f.confidence)
+            if conf.upper() == "INFO" or f.severity == Severity.INFO:
+                f.confidence = "INFO"
+            else:
+                f.confidence = "POSSIBLE"
+            enforced_findings.append(f)
+
+        cb(f"zap: {len(enforced_findings)} findings harvested")
+        return enforced_findings
+    except Exception as exc:
+        cb(f"zap error: {exc}")
+        return []
+
+
+def zap_command(target: str) -> str:
+    return f"zaproxy -daemon -port 8090"
+
+
+# =====================================================================
 # Runner — runs all available tools
 # =====================================================================
 
@@ -591,6 +652,7 @@ def run_all_tools(
     manual_commands["nuclei"] = nuclei_command(target)
     manual_commands["gobuster"] = gobuster_command(target)
     manual_commands["sslscan"] = sslscan_command(target)
+    manual_commands["zaproxy"] = zap_command(target)
 
     if endpoints:
         sqli_cmds = generate_sqlmap_commands(endpoints)
@@ -625,5 +687,14 @@ def run_all_tools(
             all_findings.extend(findings)
         except Exception as exc:
             cb(f"gobuster failed: {exc}")
+
+    # OWASP ZAP
+    if _find("zaproxy") or _find("zap"):
+        cb("\n=== Running OWASP ZAP ===")
+        try:
+            findings = run_zap(target, output_dir, timeout=min(timeout, 120), progress_cb=cb)
+            all_findings.extend(findings)
+        except Exception as exc:
+            cb(f"zaproxy failed: {exc}")
 
     return all_findings, manual_commands

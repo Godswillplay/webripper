@@ -144,73 +144,155 @@ class RipperWorker(threading.Thread):
                 target_settings = copy.deepcopy(self.settings)
                 target_settings.url = target_url
 
-                # Phase 1: Crawl
-                with self._lock:
-                    if self._is_cancelled:
-                        self._emit_cancelled()
-                        return
-                    self._ripper = WebRipper(
-                        settings=target_settings,
-                        progress_callback=self._on_progress,
-                    )
-                    if self._is_cancelled:
-                        self._ripper.cancel()
-                        self._emit_cancelled()
-                        return
+                zap_ctx = None
+                zap_session = None
+                use_zap = (
+                    getattr(self.settings, "use_external_tools", True)
+                    and getattr(self.settings, "enable_zap", True)
+                )
 
-                rip_report = loop.run_until_complete(self._ripper.run())
+                if use_zap:
+                    try:
+                        from .tools.zap import ZAPManager, ZAPSessionContext
+                        zap_mgr = ZAPManager()
+                        zap_detect = zap_mgr.detect_zap()
+                        if zap_detect.get("installed") or zap_mgr.is_proxy_running():
+                            zap_ctx = ZAPSessionContext(
+                                target_url=target_url,
+                                progress_cb=lambda msg, pct=0: self._on_progress(ProgressEvent(
+                                    event_type=EventType.LOG,
+                                    message=f"[ZAP] {msg}",
+                                )),
+                                zap_manager=zap_mgr,
+                            )
+                            zap_session = zap_ctx.__enter__()
+                            if zap_session and zap_session.is_proxy_running():
+                                target_settings.proxy = zap_session.proxy_url
+                                self._on_progress(ProgressEvent(
+                                    event_type=EventType.LOG,
+                                    message=f"Routing crawl and scanner traffic through OWASP ZAP ({zap_session.proxy_url})",
+                                ))
+                        else:
+                            self._on_progress(ProgressEvent(
+                                event_type=EventType.LOG,
+                                message="OWASP ZAP not detected on system; skipping ZAP passive scan.",
+                            ))
+                    except Exception as zap_err:
+                        self._on_progress(ProgressEvent(
+                            event_type=EventType.LOG,
+                            message=f"OWASP ZAP initialization notice: {zap_err}",
+                        ))
+                        if zap_ctx:
+                            try:
+                                zap_ctx.__exit__(None, None, None)
+                            except Exception:
+                                pass
+                            zap_ctx = None
+                            zap_session = None
 
-                if self._is_cancelled:
-                    self._emit_cancelled()
-                    return
-
-                self._pause_event.wait()
-
-                if i == 0:
-                    recon.rip_report = rip_report
-                elif rip_report:
-                    if recon.rip_report is None:
-                        recon.rip_report = rip_report
-                    else:
-                        recon.rip_report.files.extend(rip_report.files)
-                        recon.rip_report.captured_requests.extend(rip_report.captured_requests)
-                        recon.rip_report.pages_crawled += rip_report.pages_crawled
-                        recon.rip_report.total_downloaded += rip_report.total_downloaded
-                        recon.rip_report.total_failed += rip_report.total_failed
-                        recon.rip_report.total_size += rip_report.total_size
-
-                # Check if root fetch succeeded or target is unreachable
-                target_unreachable = False
-                if not rip_report or getattr(rip_report, "unreachable", False) is True:
-                    target_unreachable = True
-                elif rip_report.pages_crawled == 0 and rip_report.total_downloaded == 0 and (rip_report.errors or rip_report.total_failed > 0):
-                    target_unreachable = True
-
-                if target_unreachable:
-                    recon.unreachable = True
-                    if rip_report:
-                        rip_report.unreachable = True
-                    self._on_progress(ProgressEvent(
-                        event_type=EventType.LOG,
-                        message=f"Target {target_url} was unreachable — aborting scanner pipeline.",
-                    ))
-                    continue
-
-                # Phase 2: Run scanners for this target with target_settings
-                self._run_scanners(recon, rip_report, target_settings)
-                # Restore the worker thread's event loop in case an async scanner replaced/closed it
                 try:
-                    if loop.is_closed():
-                        loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                except Exception:
-                    pass
+                    # Phase 1: Crawl
+                    with self._lock:
+                        if self._is_cancelled:
+                            self._emit_cancelled()
+                            return
+                        self._ripper = WebRipper(
+                            settings=target_settings,
+                            progress_callback=self._on_progress,
+                        )
+                        if self._is_cancelled:
+                            self._ripper.cancel()
+                            self._emit_cancelled()
+                            return
 
-                if self._is_cancelled:
-                    self._emit_cancelled()
-                    return
+                    rip_report = loop.run_until_complete(self._ripper.run())
 
-                self._pause_event.wait()
+                    if self._is_cancelled:
+                        self._emit_cancelled()
+                        return
+
+                    self._pause_event.wait()
+
+                    if i == 0:
+                        recon.rip_report = rip_report
+                    elif rip_report:
+                        if recon.rip_report is None:
+                            recon.rip_report = rip_report
+                        else:
+                            recon.rip_report.files.extend(rip_report.files)
+                            recon.rip_report.captured_requests.extend(rip_report.captured_requests)
+                            recon.rip_report.pages_crawled += rip_report.pages_crawled
+                            recon.rip_report.total_downloaded += rip_report.total_downloaded
+                            recon.rip_report.total_failed += rip_report.total_failed
+                            recon.rip_report.total_size += rip_report.total_size
+
+                    # Check if root fetch succeeded or target is unreachable
+                    target_unreachable = False
+                    if not rip_report or getattr(rip_report, "unreachable", False) is True:
+                        target_unreachable = True
+                    elif rip_report.pages_crawled == 0 and rip_report.total_downloaded == 0 and (rip_report.errors or rip_report.total_failed > 0):
+                        target_unreachable = True
+
+                    if target_unreachable:
+                        recon.unreachable = True
+                        if rip_report:
+                            rip_report.unreachable = True
+                        self._on_progress(ProgressEvent(
+                            event_type=EventType.LOG,
+                            message=f"Target {target_url} was unreachable — aborting scanner pipeline.",
+                        ))
+                        continue
+
+                    # Phase 2: Run scanners for this target with target_settings
+                    self._run_scanners(recon, rip_report, target_settings)
+                    # Restore the worker thread's event loop in case an async scanner replaced/closed it
+                    try:
+                        if loop.is_closed():
+                            loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    except Exception:
+                        pass
+
+                    # Harvest ZAP passive findings after Phase 2 scanners finish
+                    if zap_session:
+                        try:
+                            self._on_progress(ProgressEvent(
+                                event_type=EventType.LOG,
+                                message="Draining ZAP passive scan queue...",
+                            ))
+                            zap_session.drain_passive_scan(timeout=20.0, settle_delay=1.0)
+                            zap_findings = zap_session.get_alerts(base_url=target_url)
+                            if zap_findings:
+                                from .models import ScanResult
+                                recon.scan_results.append(ScanResult(
+                                    scanner_name="zap",
+                                    description="OWASP ZAP passive audit findings",
+                                    findings=zap_findings,
+                                ))
+                                self._on_progress(ProgressEvent(
+                                    event_type=EventType.LOG,
+                                    message=f"ZAP passive scan: {len(zap_findings)} candidate findings harvested",
+                                ))
+                        except Exception as zap_drain_err:
+                            self._on_progress(ProgressEvent(
+                                event_type=EventType.LOG,
+                                message=f"ZAP passive scan harvesting notice: {zap_drain_err}",
+                            ))
+
+                    if self._is_cancelled:
+                        self._emit_cancelled()
+                        return
+
+                    self._pause_event.wait()
+
+                finally:
+                    if zap_ctx:
+                        try:
+                            zap_ctx.__exit__(None, None, None)
+                        except Exception:
+                            pass
+                        zap_ctx = None
+                        zap_session = None
 
             # If target was unreachable, abort external tools, correlator, and report saving
             if getattr(recon, "unreachable", False) is True or (getattr(recon, "rip_report", None) and getattr(recon.rip_report, "unreachable", False) is True):

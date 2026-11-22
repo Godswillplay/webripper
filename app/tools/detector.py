@@ -98,6 +98,12 @@ _TOOL_DEFS = {
         "url": "https://github.com/urbanadventurer/WhatWeb",
         "note": "Requires Ruby runtime",
     },
+    "zaproxy": {
+        "display": "OWASP ZAP", "check_args": ["-version"],
+        "installable": False, "size": "~200MB",
+        "url": "https://www.zaproxy.org/download/",
+        "note": "Requires Java 11+ runtime",
+    },
 }
 
 
@@ -108,6 +114,13 @@ def _find_tool(name: str) -> Optional[str]:
         burp_info = BurpManager().detect_burp()
         if burp_info.get("installed") and burp_info.get("path"):
             return burp_info["path"]
+
+    if name in ("zaproxy", "zap"):
+        try:
+            from .zap import ZAPManager
+            return ZAPManager().detect_zap()["path"]
+        except Exception:
+            pass
 
     if name == "nmap":
         from .installer import COMMON_NMAP_PATHS
@@ -193,6 +206,9 @@ def _get_version(tool_path: str, check_args: List[str]) -> str:
         if tool_path.endswith(".jar"):
             return "Community (Portable JAR)"
         return "installed"
+
+    is_zap = any(k in tool_path.lower() for k in ("zaproxy", "zed attack proxy", "zap.bat", "zap.sh", "zap.jar", "zap.exe")) or tool_path.lower().endswith("zap")
+
     try:
         flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         cmd = [tool_path] + check_args
@@ -204,6 +220,8 @@ def _get_version(tool_path: str, check_args: List[str]) -> str:
                 cmd = [perl, tool_path] + check_args
             else:
                 return "installed (perl required)"
+        elif tool_path.lower().endswith((".bat", ".cmd")) and platform.system() == "Windows":
+            cmd = [os.environ.get("COMSPEC", "cmd.exe"), "/c", tool_path] + check_args
 
         result = subprocess.run(
             cmd,
@@ -215,8 +233,28 @@ def _get_version(tool_path: str, check_args: List[str]) -> str:
         # Clean ANSI color escape sequences
         clean_output = re.sub(r"\x1b\[[0-9;]*[mGKF]", "", output)
         m = re.search(r"(?:version|v)?\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[\w.]+)?)\b", clean_output, re.IGNORECASE)
-        return m.group(1) if m else "installed"
+        if m:
+            return m.group(1)
+
+        if is_zap:
+            try:
+                from .zap import ZAPManager
+                zap_info = ZAPManager().detect_zap()
+                if zap_info.get("version"):
+                    return zap_info["version"]
+            except Exception:
+                pass
+
+        return "installed"
     except Exception:
+        if is_zap:
+            try:
+                from .zap import ZAPManager
+                zap_info = ZAPManager().detect_zap()
+                if zap_info.get("version"):
+                    return zap_info["version"]
+            except Exception:
+                pass
         return ""
 
 

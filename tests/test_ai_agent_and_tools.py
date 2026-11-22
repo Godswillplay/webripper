@@ -540,3 +540,145 @@ class TestLinuxToolsParity:
         res2 = install_all_missing()
         assert res2 == {"nuclei": True}
         assert missing_installed == [True]
+
+
+class TestZAPToolRegistryIntegration:
+    """Test OWASP ZAP integration in detector, installer, and runner."""
+
+    def test_zap_in_tool_defs(self):
+        from app.tools.detector import _TOOL_DEFS
+        assert "zaproxy" in _TOOL_DEFS
+        zap_def = _TOOL_DEFS["zaproxy"]
+        assert zap_def["display"] == "OWASP ZAP"
+        assert zap_def["check_args"] == ["-version"]
+        assert zap_def["installable"] is False
+        assert zap_def["size"] == "~200MB"
+        assert zap_def["url"] == "https://www.zaproxy.org/download/"
+        assert "Java 11+" in zap_def["note"]
+
+    def test_detector_find_tool_delegates_to_zap_manager(self, monkeypatch):
+        from app.tools.detector import _find_tool
+
+        class MockZAPManager:
+            def detect_zap(self):
+                return {"installed": True, "path": "/opt/zaproxy/zap.sh", "version": "2.15.0"}
+
+        monkeypatch.setattr("app.tools.zap.ZAPManager", MockZAPManager)
+
+        assert _find_tool("zaproxy") == "/opt/zaproxy/zap.sh"
+        assert _find_tool("zap") == "/opt/zaproxy/zap.sh"
+
+    def test_detector_get_version_zap(self, monkeypatch):
+        from app.tools.detector import _get_version
+
+        class MockZAPManager:
+            def detect_zap(self):
+                return {"installed": True, "path": "/opt/zaproxy/zap.sh", "version": "2.15.0"}
+
+        monkeypatch.setattr("app.tools.zap.ZAPManager", MockZAPManager)
+
+        ver = _get_version("/opt/zaproxy/zap.sh", ["-version"])
+        assert ver == "2.15.0"
+
+    def test_installer_get_installable_tools_has_zaproxy(self, monkeypatch):
+        from app.tools.installer import ToolInstaller
+
+        class MockZAPManager:
+            def detect_zap(self):
+                return {"installed": True, "path": "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat", "version": "2.15.0"}
+            def is_proxy_running(self):
+                return True
+
+        monkeypatch.setattr("app.tools.installer.ZAPManager", MockZAPManager)
+
+        installer = ToolInstaller()
+        installer.zap_manager = MockZAPManager()
+        tools = installer.get_installable_tools()
+
+        assert "zaproxy" in tools
+        z = tools["zaproxy"]
+        assert z["type"] == "gui_proxy"
+        assert z["installed"] is True
+        assert z["path"] == "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat"
+        assert z["source"] == "zaproxy.org"
+        assert z["proxy_active"] is True
+        assert z["can_auto_install"] is False
+
+    def test_installer_install_zap_hints(self, monkeypatch):
+        import platform
+        from app.tools.installer import ToolInstaller
+
+        messages = []
+        installer = ToolInstaller(progress_cb=lambda m: messages.append(m))
+
+        # Test Windows hint
+        monkeypatch.setattr(platform, "system", lambda: "Windows")
+        res_win = installer.install_tool("zaproxy")
+        assert res_win is False
+        assert any("https://www.zaproxy.org/download/" in m for m in messages)
+
+        # Test Linux hint with package manager
+        messages.clear()
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(
+            "app.tools.installer.get_linux_package_manager",
+            lambda: ("apt-get", "sudo apt-get install -y"),
+        )
+        res_linux = installer.install_tool("zap")
+        assert res_linux is False
+        assert any("sudo apt-get install -y zaproxy" in m for m in messages)
+
+    def test_runner_run_zap_contract(self, monkeypatch):
+        from app.tools.runner import run_zap, zap_command
+        from app.models import Finding, Severity, Confidence
+
+        # Check command
+        cmd = zap_command("https://example.com")
+        assert "zaproxy" in cmd
+
+        class MockZAPManager:
+            def detect_zap(self):
+                return {"installed": True, "path": "/usr/bin/zaproxy", "version": "2.15.0"}
+            def is_proxy_running(self):
+                return True
+            def drain_passive_scan(self, timeout=20.0, settle_delay=1.0):
+                return True
+            def get_alerts(self, base_url=""):
+                return [
+                    Finding(
+                        severity=Severity.HIGH,
+                        category="zap",
+                        title="SQL Injection",
+                        description="Potential SQL injection detected",
+                        confidence="VERIFIED",  # Should be downgraded to POSSIBLE!
+                    ),
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        category="zap",
+                        title="X-Frame-Options Missing",
+                        description="Clickjacking possible",
+                        confidence="LIKELY",  # Should be downgraded to POSSIBLE!
+                    ),
+                    Finding(
+                        severity=Severity.INFO,
+                        category="zap",
+                        title="Timestamp Disclosure",
+                        description="Info header found",
+                        confidence="INFO",
+                    ),
+                ]
+
+        monkeypatch.setattr("app.tools.zap.ZAPManager", MockZAPManager)
+
+        findings = run_zap("https://example.com")
+        assert len(findings) == 3
+
+        # Critical invariant check: No ZAP finding can ever be VERIFIED!
+        for f in findings:
+            conf = f.confidence.value if hasattr(f.confidence, "value") else str(f.confidence)
+            assert conf != "VERIFIED"
+            assert conf in ("POSSIBLE", "INFO")
+
+        assert findings[0].confidence == "POSSIBLE"
+        assert findings[1].confidence == "POSSIBLE"
+        assert findings[2].confidence == "INFO"
